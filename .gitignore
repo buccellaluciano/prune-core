@@ -1,0 +1,10 @@
+# Compilados de Cargo, el MSI y el zip
+/target
+
+.DS_Store
+
+# Claves y configuración local: nunca al repo
+*.key
+.env
+.env.*
+.claude/

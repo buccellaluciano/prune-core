@@ -1,0 +1,12 @@
+# Revisa una vez por semana si hay versiones nuevas de las dependencias.
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    ignore:
+      # Tiene que ser la versión que usa el crate `windows` (0.62 → windows-future 0.3).
+      # Se sube a mano junto con `windows`; por separado no compila.
+      - dependency-name: "windows-future"

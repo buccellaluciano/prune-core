@@ -1,0 +1,54 @@
+# P-Rune Core: debloater y ajustes para Windows 11 desde la consola, en un solo exe (`prune`).
+#   src/     la consola: comandos, interfaz interactiva e idiomas
+#   engine/  el motor: catálogo, tweaks, historial y acceso a Windows. Sin interfaz.
+[workspace]
+members = ["engine"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+authors = ["buccellaluciano"]
+license = "MIT"
+repository = "https://github.com/buccellaluciano/prune-core"
+edition = "2024"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+windows = "0.62.2"
+
+[package]
+name = "prune-core"
+description = "P-Rune Core: debloater y ajustes para Windows 11 desde la consola, en un solo exe."
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "prune"
+path = "src/main.rs"
+
+[dependencies]
+prune-engine = { path = "engine" }
+clap = { version = "4.6", features = ["derive", "env", "string"] }
+# Colores que se apagan solos cuando la salida va a un archivo o a otro programa.
+anstream = "1.0"
+anstyle = "1.0"
+# Ancho real de cada texto en la terminal (los caracteres chinos y japoneses ocupan dos columnas).
+unicode-width = "0.2"
+serde = { workspace = true }
+serde_json = { workspace = true }
+windows = { workspace = true, features = ["Win32_Foundation", "Win32_System_LibraryLoader", "Win32_Globalization", "Win32_UI_WindowsAndMessaging"] }
+# Solo el backend de crossterm (el que anda en Windows): sin los otros ni los widgets extra.
+ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
+
+# Se optimiza el tamaño, no la velocidad: el exe pesa un tercio menos y responde igual,
+# porque lo que tarda es leer el registro, no el programa.
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "z"
+panic = "abort"
+strip = true

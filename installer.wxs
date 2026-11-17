@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Instalador MSI de P-Rune Core. Hace tres cosas y nada más:
+    1. copia prune.exe (con la licencia y el instructivo) a Program Files\P-Rune Core,
+    2. agrega esa carpeta al PATH del equipo, así `prune` anda desde cualquier consola,
+    3. lo deja en "Aplicaciones instaladas" para poder quitarlo (y sacarlo del PATH).
+
+  No tiene asistente: doble clic, Windows pide permiso de administrador y listo. Para
+  instalarlo sin ventanas: msiexec /i P-Rune-Core_<versión>_x64.msi /qn
+  Para no tocar el PATH: agregar ADDTOPATH=0.
+
+  Del PATH se encarga Windows Installer (tabla Environment): agrega solo esta entrada al
+  final y la quita al desinstalar; el resto del PATH no se toca. Va al PATH del equipo porque
+  en Program Files solo escriben los administradores (ver src/envpath.rs).
+
+  Lo arma scripts/package.mjs con WiX 3, que le pasa la versión y las rutas (-d...).
+  El UpgradeCode y los Guid de los componentes no se cambian nunca: son los que le dicen a
+  Windows que una versión nueva reemplaza a la anterior.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="P-Rune Core" Language="1033" Version="$(var.Version)" Manufacturer="buccellaluciano" UpgradeCode="C6C7D90B-B0EC-441E-9A5E-D01052E0D16B">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64" Description="Debloater y ajustes para Windows 11 desde la consola" />
+    <MajorUpgrade DowngradeErrorMessage="Ya hay instalada una version mas nueva de P-Rune Core." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="AppIcon" SourceFile="$(var.Icon)" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/buccellaluciano/prune-core" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLDIR" Name="P-Rune Core">
+          <Component Id="PruneExe" Guid="87EA8267-DA9E-416A-98CB-6E0D3DE49687" Win64="yes">
+            <File Id="PruneExe" Name="prune.exe" Source="$(var.Exe)" KeyPath="yes" />
+          </Component>
+          <Component Id="Docs" Guid="598BF5AB-6651-42E1-83E8-32922DA11244" Win64="yes">
+            <File Id="License" Name="LICENSE" Source="$(var.License)" KeyPath="yes" />
+            <File Id="Readme" Name="README.md" Source="$(var.Readme)" />
+          </Component>
+          <!-- Transitive: la condición se vuelve a mirar al reinstalar o actualizar. -->
+          <Component Id="PathEntry" Guid="BE64276D-AE8B-40D5-8733-C107C4AAAA64" Win64="yes" Transitive="yes">
+            <Condition><![CDATA[ADDTOPATH <> "0"]]></Condition>
+            <CreateFolder />
+            <Environment Id="PathEntry" Name="PATH" Value="[INSTALLDIR]" Part="last" Action="set" System="yes" Permanent="no" />
+          </Component>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <Feature Id="Main" Title="P-Rune Core" Level="1">
+      <ComponentRef Id="PruneExe" />
+      <ComponentRef Id="Docs" />
+      <ComponentRef Id="PathEntry" />
+    </Feature>
+  </Product>
+</Wix>
