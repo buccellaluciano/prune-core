@@ -1,0 +1,30 @@
+# Corre los tests en cada cambio: en main y en cada pull request (los de Dependabot incluidos).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Solo lee el código: no publica ni escribe nada en el repo.
+permissions:
+  contents: read
+
+# Un push nuevo a la misma branch cancela la corrida anterior.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: Swatinem/rust-cache@v2
+      # --locked: con las versiones exactas de Cargo.lock, las mismas que se publican.
+      - name: Tests del motor y de la consola
+        run: cargo test --workspace --locked
+      # El exe tiene que compilar también con el perfil con el que se publica.
+      - name: Compilar como en el release
+        run: cargo build --release --locked

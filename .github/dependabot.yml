@@ -6,7 +6,24 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      # Un solo PR por semana con todas las actualizaciones menores y de parche (una branch,
+      # una corrida de tests). Las mayores llegan cada una por separado: suelen pedir cambios.
+      menores:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
     ignore:
       # Tiene que ser la versión que usa el crate `windows` (0.62 → windows-future 0.3).
       # Se sube a mano junto con `windows`; por separado no compila.
       - dependency-name: "windows-future"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      acciones:
+        patterns:
+          - "*"
