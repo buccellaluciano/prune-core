@@ -56,7 +56,10 @@ enum Modal {
     /// Elegir la opción de un ajuste (`view` es su posición en `views`).
     Choice { view: usize, sel: usize },
     Plan { plan: Result<Vec<PlannedChange>, String>, scroll: u16 },
-    ConfirmUndo { id: u64, label: String },
+    /// `lines`: lo que deshacer va a escribir (ver `journal::undo_plan`).
+    ConfirmUndo { id: u64, label: String, lines: Vec<String> },
+    /// Mientras el motor trabaja: no se obedece ninguna tecla.
+    Working,
     /// Quitar apps de Windows (ids del catálogo).
     ConfirmRemove { ids: Vec<String> },
     /// Resultado de aplicar o deshacer: (salió bien, texto).
@@ -69,7 +72,6 @@ pub struct App {
     cats: Vec<(String, String)>,
     views: Vec<TweakView>,
     elevated: bool,
-    writable: bool,
     focus: Focus,
     cat: usize,
     row: usize,
@@ -82,6 +84,8 @@ pub struct App {
     pending: Vec<Desired>,
     modal: Modal,
     message: Option<String>,
+    /// La ventana no alcanza para dibujar nada: no se obedece ninguna tecla, salvo salir.
+    too_small: bool,
     section: Section,
     /// Apps del catálogo instaladas. None: todavía no se leyeron.
     bloat: Option<Vec<BloatView>>,
@@ -120,14 +124,13 @@ fn centered(area: Rect, w: u16, h: u16) -> Rect {
 }
 
 impl App {
-    pub fn new(header: String, cats: Vec<(String, String)>, views: Vec<TweakView>, elevated: bool, writable: bool) -> Self {
+    pub fn new(header: String, cats: Vec<(String, String)>, views: Vec<TweakView>, elevated: bool) -> Self {
         let cats = cats.into_iter().filter(|(id, _)| views.iter().any(|v| &v.category == id)).collect();
         Self {
             header,
             cats,
             views,
             elevated,
-            writable,
             focus: Focus::Tweaks,
             cat: 0,
             row: 0,
@@ -138,6 +141,7 @@ impl App {
             pending: Vec::new(),
             modal: Modal::None,
             message: None,
+            too_small: false,
             section: Section::Tweaks,
             bloat: None,
             bloat_row: 0,
@@ -204,13 +208,6 @@ impl App {
     fn toggle(&mut self) {
         let Some(i) = self.selected() else { return };
         let v = &self.views[i];
-        if !self.writable {
-            self.message = Some(
-                tr("Solo lectura: P-Rune está instalado para todo el equipo. Abrí una terminal de administrador para cambiar algo.")
-                .into(),
-            );
-            return;
-        }
         if matches!(v.state, TweakState::Unsupported | TweakState::Error) {
             self.message = Some(format!("{}: {}", v.title, tweaks::state_text(v.state)));
             return;
@@ -250,9 +247,15 @@ impl App {
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             return Action::Quit;
         }
+        // Con la ventana demasiado chica no se dibuja nada: obedecer teclas sería aplicar o
+        // quitar cosas a ciegas. Solo se puede salir.
+        if self.too_small {
+            return if key.code == KeyCode::Char('q') { Action::Quit } else { Action::None };
+        }
         self.message = None;
         match &mut self.modal {
             Modal::None => {}
+            Modal::Working => return Action::None,
             Modal::Help | Modal::Outcome { .. } => {
                 self.modal = Modal::None;
                 return Action::None;
@@ -449,8 +452,13 @@ impl App {
             Modal::Outcome { title: tr("Aplicado").into(), lines, note: (!note.is_empty()).then(|| note.join(" ")) };
     }
 
-    pub fn ask_undo(&mut self, id: u64, label: String) {
-        self.modal = Modal::ConfirmUndo { id, label };
+    pub fn ask_undo(&mut self, id: u64, label: String, lines: Vec<String>) {
+        self.modal = Modal::ConfirmUndo { id, label, lines };
+    }
+
+    /// Lo que sigue tarda (aplicar, quitar apps, deshacer): se avisa en pantalla.
+    pub fn working(&mut self) {
+        self.modal = Modal::Working;
     }
 
     pub fn undone(&mut self, result: Result<ApplyReport, String>, views: Vec<TweakView>) {
@@ -568,7 +576,8 @@ impl App {
 
     pub fn draw(&mut self, f: &mut Frame) {
         let area = f.area();
-        if area.width < 60 || area.height < 14 {
+        self.too_small = area.width < 60 || area.height < 14;
+        if self.too_small {
             f.render_widget(Paragraph::new(tr("Agrandá la ventana para usar P-Rune.")), area);
             return;
         }
@@ -758,9 +767,14 @@ impl App {
                 let h = (lines.len() as u16 + 3).min(area.height.saturating_sub(4));
                 popup(f, centered(area, wide.min(84), h), tf!("¿Quitar {n} apps?", n = ids.len()), tr("enter quitar · esc volver"), lines, 0);
             }
-            Modal::ConfirmUndo { label, .. } => {
-                let lines = vec![Line::styled(label.clone(), bold()), Line::raw(""), Line::raw(tr("Vuelve cada valor a como estaba antes."))];
-                popup(f, centered(area, wide.min(72), 5), tr("¿Deshacer?").into(), tr("enter deshacer · esc volver"), lines, 0);
+            Modal::ConfirmUndo { label, lines, .. } => {
+                let mut out = vec![Line::styled(label.clone(), bold()), Line::raw(""), Line::raw(tr("Deshacer esta entrada va a escribir:"))];
+                out.extend(lines.iter().map(|l| Line::styled(format!("  {l}"), dim())));
+                let h = (out.len() as u16 + 2).min(area.height.saturating_sub(4));
+                popup(f, centered(area, wide, h), tr("¿Deshacer?").into(), tr("enter deshacer · esc volver"), out, 0);
+            }
+            Modal::Working => {
+                popup(f, centered(area, 34, 3), "P-Rune Core".into(), "", vec![Line::raw(tr("Trabajando…"))], 0);
             }
             Modal::Outcome { title, lines, note } => {
                 let mut out: Vec<Line> = lines.iter().map(|(ok, t)| outcome(*ok, t)).collect();
@@ -787,7 +801,7 @@ pub fn run(ctx: &Ctx) -> Result<(), String> {
         if i.elevated { tr("administrador") } else { tr("sin administrador") }
     );
     let cats = catalog::tweaks().category.iter().map(|c| (c.id.clone(), i18n::category(&c.id, &c.title))).collect();
-    let mut app = App::new(header, cats, engine::list(i.build), i.elevated, ctx.writable);
+    let mut app = App::new(header, cats, engine::list(i.build), i.elevated);
 
     let mut terminal = ratatui::try_init().map_err(|e| e.to_string())?;
     let result = event_loop(&mut terminal, &mut app, ctx);
@@ -805,22 +819,27 @@ fn event_loop(terminal: &mut ratatui::DefaultTerminal, app: &mut App, ctx: &Ctx)
         if key.kind != KeyEventKind::Press {
             continue;
         }
-        match app.on_key(key) {
-            Action::None => {}
+        let action = app.on_key(key);
+        match action {
+            Action::None => continue,
             Action::Quit => return Ok(()),
             Action::Plan => app.show_plan(engine::plan(app.pending(), build)),
             Action::Apply => {
-                let report = ctx.engine.apply(&app.changing(), ctx.info.elevated, build, foreign);
+                // Lo que se aplica sale del plan que está en pantalla: se toma antes de taparlo.
+                let desired = app.changing();
+                busy(terminal, app)?;
+                let report = ctx.engine.apply(&desired, ctx.info.elevated, build, foreign);
                 app.applied(&report, engine::list(build));
             }
-            Action::AskUndo => match ctx.need_write() {
-                Err(e) => app.set_message(e),
-                Ok(()) => match ctx.engine.history().into_iter().find(journal::undoable) {
-                    Some(e) => app.ask_undo(e.id, e.label),
-                    None => app.set_message(tr("No hay nada para deshacer.").into()),
-                },
+            Action::AskUndo => match ctx.engine.history().into_iter().find(journal::undoable) {
+                Some(e) => {
+                    let lines = journal::undo_plan(&e);
+                    app.ask_undo(e.id, e.label, lines);
+                }
+                None => app.set_message(tr("No hay nada para deshacer.").into()),
             },
             Action::Undo(id) => {
+                busy(terminal, app)?;
                 let result = ctx.engine.undo(id, false, foreign);
                 app.undone(result, engine::list(build));
                 app.set_history(ctx.engine.history());
@@ -833,13 +852,31 @@ fn event_loop(terminal: &mut ratatui::DefaultTerminal, app: &mut App, ctx: &Ctx)
                 app.set_bloat(appx::list());
             }
             Action::RemoveBloat(ids) => {
+                busy(terminal, app)?;
                 let result = bloat::remove_now(ctx, &ids, false);
                 app.bloat_removed(result, appx::list());
                 app.set_history(ctx.engine.history());
             }
             Action::LoadHistory => app.set_history(ctx.engine.history()),
         }
+        // Lo que se haya tecleado mientras el motor trabajaba se descarta. Si no, un Enter
+        // repetido por impaciencia cerraría el resultado sin leerlo y confirmaría lo siguiente.
+        discard_typed()?;
     }
+}
+
+/// Avisa en pantalla que lo que sigue tarda, antes de empezar.
+fn busy(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> Result<(), String> {
+    app.working();
+    terminal.draw(|f| app.draw(f)).map(|_| ()).map_err(|e| e.to_string())
+}
+
+/// Vacía la cola de teclas.
+fn discard_typed() -> Result<(), String> {
+    while event::poll(std::time::Duration::ZERO).map_err(|e| e.to_string())? {
+        event::read().map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -869,7 +906,7 @@ pub(super) mod tests {
         }
     }
 
-    pub(super) fn app(elevated: bool, writable: bool) -> App {
+    pub(super) fn app(elevated: bool) -> App {
         let mut mode = view("search.taskbar_mode", "Búsqueda en la barra", TweakState::Default, false);
         mode.choices = vec![
             ChoiceView { id: "hidden".into(), label: "Oculta".into(), default: false },
@@ -884,7 +921,7 @@ pub(super) mod tests {
             view("taskbar.align_left", "Alinear a la izquierda", TweakState::Default, false),
         ];
         let cats = [("privacy", "Privacidad"), ("search", "Búsqueda"), ("taskbar", "Barra de tareas"), ("vacia", "Sin ajustes")];
-        App::new("0.5.0 · Windows 11".into(), cats.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect(), views, elevated, writable)
+        App::new("0.5.0 · Windows 11".into(), cats.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect(), views, elevated)
     }
 
     pub(super) fn press(app: &mut App, code: KeyCode) -> Action {
@@ -906,13 +943,13 @@ pub(super) mod tests {
 
     #[test]
     fn las_categorias_sin_ajustes_no_aparecen() {
-        let a = app(true, true);
+        let a = app(true);
         assert_eq!(a.cats.iter().map(|c| c.0.as_str()).collect::<Vec<_>>(), ["privacy", "search", "taskbar"]);
     }
 
     #[test]
     fn espacio_marca_y_desmarca() {
-        let mut a = app(true, true);
+        let mut a = app(true);
         // El primero está aplicado: marcarlo es revertirlo.
         press(&mut a, KeyCode::Char(' '));
         assert_eq!(a.pending.len(), 1);
@@ -927,7 +964,7 @@ pub(super) mod tests {
 
     #[test]
     fn sin_admin_no_se_marca_lo_que_pide_admin() {
-        let mut a = app(false, true);
+        let mut a = app(false);
         press(&mut a, KeyCode::Down);
         press(&mut a, KeyCode::Char(' '));
         assert!(a.pending.is_empty());
@@ -938,31 +975,50 @@ pub(super) mod tests {
 
     #[test]
     fn lo_no_disponible_no_se_marca() {
-        let mut a = app(true, true);
+        let mut a = app(true);
         press(&mut a, KeyCode::End);
         assert_eq!(a.views[a.selected().unwrap()].id, "privacy.old");
         press(&mut a, KeyCode::Char(' '));
         assert!(a.pending.is_empty());
     }
 
+    /// Con la ventana demasiado chica no se ve el plan: no se puede aplicar ni quitar nada.
     #[test]
-    fn solo_lectura_no_marca_nada() {
-        let mut a = app(true, false);
-        press(&mut a, KeyCode::Char(' '));
-        assert!(a.pending.is_empty());
-        assert!(a.message.is_some());
+    fn ventana_chica_no_obedece_teclas() {
+        let mut a = app(true);
+        assert!(screen(&mut a, 40, 8).contains("Agrandá"));
+        for key in [KeyCode::Enter, KeyCode::Enter, KeyCode::Char(' '), KeyCode::Char('2'), KeyCode::Enter, KeyCode::Char('u')] {
+            assert_eq!(press(&mut a, key), Action::None);
+        }
+        assert!(a.pending.is_empty() && matches!(a.modal, Modal::None) && a.section == Section::Tweaks);
+        // Salir sí se puede, y al agrandarla vuelve a obedecer.
+        assert_eq!(press(&mut a, KeyCode::Char('q')), Action::Quit);
+        screen(&mut a, 100, 30);
+        assert_eq!(press(&mut a, KeyCode::Enter), Action::Plan);
+    }
+
+    /// Mientras el motor trabaja se ve el aviso y las teclas no hacen nada.
+    #[test]
+    fn mientras_trabaja_no_obedece_teclas() {
+        let mut a = app(true);
+        a.working();
+        assert!(screen(&mut a, 100, 30).contains("Trabajando"));
+        for key in [KeyCode::Enter, KeyCode::Esc, KeyCode::Char('q'), KeyCode::Char(' ')] {
+            assert_eq!(press(&mut a, key), Action::None);
+        }
+        assert!(matches!(a.modal, Modal::Working) && a.pending.is_empty());
     }
 
     #[test]
     fn enter_sin_marcas_arma_el_plan_de_ese_ajuste() {
-        let mut a = app(true, true);
+        let mut a = app(true);
         assert_eq!(press(&mut a, KeyCode::Enter), Action::Plan);
         assert_eq!(a.pending[0].id, "privacy.advertising_id");
     }
 
     #[test]
     fn enter_con_marcas_no_agrega_el_seleccionado() {
-        let mut a = app(true, true);
+        let mut a = app(true);
         press(&mut a, KeyCode::Char(' '));
         press(&mut a, KeyCode::Down);
         assert_eq!(press(&mut a, KeyCode::Enter), Action::Plan);
@@ -971,7 +1027,7 @@ pub(super) mod tests {
 
     #[test]
     fn ajustes_con_opciones() {
-        let mut a = app(true, true);
+        let mut a = app(true);
         press(&mut a, KeyCode::Left);
         press(&mut a, KeyCode::Down);
         press(&mut a, KeyCode::Right);
@@ -992,7 +1048,7 @@ pub(super) mod tests {
 
     #[test]
     fn buscar_filtra_en_todas_las_categorias() {
-        let mut a = app(true, true);
+        let mut a = app(true);
         press(&mut a, KeyCode::Char('/'));
         // Mientras se escribe, las letras son texto: la q no sale.
         type_text(&mut a, "izq");
@@ -1010,7 +1066,7 @@ pub(super) mod tests {
 
     #[test]
     fn el_plan_se_confirma_o_se_cancela() {
-        let mut a = app(true, true);
+        let mut a = app(true);
         press(&mut a, KeyCode::Char(' '));
         let change = |noop| PlannedChange {
             tweak_id: "privacy.advertising_id".into(),
@@ -1039,7 +1095,7 @@ pub(super) mod tests {
 
     #[test]
     fn despues_de_aplicar_se_limpian_las_marcas() {
-        let mut a = app(true, true);
+        let mut a = app(true);
         press(&mut a, KeyCode::Char(' '));
         let report: ApplyReport = ApplyReport {
             entry_id: Some(1),
@@ -1061,17 +1117,17 @@ pub(super) mod tests {
 
     #[test]
     fn deshacer_pide_confirmacion() {
-        let mut a = app(true, true);
+        let mut a = app(true);
         assert_eq!(press(&mut a, KeyCode::Char('u')), Action::AskUndo);
-        a.ask_undo(42, "✓ Algo".into());
+        a.ask_undo(42, "✓ Algo".into(), vec![]);
         assert_eq!(press(&mut a, KeyCode::Esc), Action::None);
-        a.ask_undo(42, "✓ Algo".into());
+        a.ask_undo(42, "✓ Algo".into(), vec![]);
         assert_eq!(press(&mut a, KeyCode::Enter), Action::Undo(42));
     }
 
     #[test]
     fn dibuja_paneles_detalle_y_ayuda() {
-        let mut a = app(false, true);
+        let mut a = app(false);
         let s = screen(&mut a, 100, 30);
         for expected in ["P-Rune", "Categorías", "Privacidad", "1/2", "● Desactivar ID de publicidad", "○ Telemetría al mínimo", "admin", "privacy.advertising_id", "Descripción de", "espacio", "q salir"] {
             assert!(s.contains(expected), "falta {expected:?} en:\n{s}");
@@ -1085,7 +1141,7 @@ pub(super) mod tests {
 
     #[test]
     fn dibuja_el_plan() {
-        let mut a = app(true, true);
+        let mut a = app(true);
         press(&mut a, KeyCode::Char(' '));
         a.show_plan(Ok(vec![PlannedChange {
             tweak_id: "privacy.advertising_id".into(),
@@ -1102,7 +1158,7 @@ pub(super) mod tests {
 
     #[test]
     fn ventana_chica_no_rompe() {
-        let mut a = app(true, true);
+        let mut a = app(true);
         assert!(screen(&mut a, 40, 8).contains("Agrandá"));
         // Y en el mínimo que sí se dibuja, tampoco.
         screen(&mut a, 60, 14);

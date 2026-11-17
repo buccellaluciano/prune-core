@@ -2,8 +2,8 @@
 
 use crate::Ctx;
 use crate::ui::{self, tr};
-use prune_engine::appx;
-use prune_engine::engine::JournalEntry;
+use prune_engine::engine::{Engine, JournalEntry};
+use prune_engine::{appx, paths, power, proxy, registry, startup, wupdate};
 
 /// Se puede deshacer: no se deshizo ya y no es solo "apps quitadas" (esas no vuelven desde acá).
 pub(crate) fn undoable(e: &JournalEntry) -> bool {
@@ -11,13 +11,57 @@ pub(crate) fn undoable(e: &JournalEntry) -> bool {
     !e.undone && (!e.changes.is_empty() || special)
 }
 
+/// Lo que deshacer esta entrada va a escribir, armado con lo que la entrada guarda de verdad
+/// y no con su título: el título se puede leer como un cambio propio aunque la entrada
+/// lleve otra cosa. Es lo que se muestra antes de confirmar.
+pub(crate) fn undo_plan(e: &JournalEntry) -> Vec<String> {
+    let mut out = Vec::new();
+    for c in &e.changes {
+        let name = if c.name.is_empty() { t!("default_value") } else { c.name.clone() };
+        out.push(format!("{}\\{}\\{name} → {}", registry::hive_label(c.hive), c.path, registry::describe(c.before.as_ref())));
+    }
+    if let Some(p) = &e.power {
+        let plan = power::parse(&p.before).map_or_else(|| p.before.clone(), |g| power::name(&g));
+        out.push(format!("{} → {plan}", t!("power_title")));
+    }
+    if let Some(n) = &e.network {
+        let servers = |list: &[String]| if list.is_empty() { tr("automático").to_string() } else { list.join(", ") };
+        for a in &n.before {
+            out.push(format!("DNS {} → IPv4 {} · IPv6 {}", a.name, servers(&a.v4.servers), servers(&a.v6.servers)));
+        }
+    }
+    // Para estos tres, lo que la entrada hizo: deshacer es lo contrario.
+    for done in [e.proxy.as_ref().map(proxy::label), e.startup.as_ref().map(startup::label), e.wu.as_ref().map(wupdate::label)].into_iter().flatten() {
+        out.push(format!("↩ {done}"));
+    }
+    out
+}
+
+/// Sin administrador se ve el historial propio. Si además hay uno de administrador (el de la
+/// app de escritorio, o el de Core en una terminal elevada), se avisa que existe.
+fn admin_history_note(ctx: &Ctx) -> Option<String> {
+    if ctx.info.elevated {
+        return None;
+    }
+    let n = Engine::new(paths::admin_journal_dir()?).history().len();
+    (n > 0).then(|| tf!("Hay además un historial de administrador con {n} entradas: abrí una terminal de administrador para verlo.", n = n))
+}
+
 pub fn history(ctx: &Ctx, limit: usize) -> Result<(), String> {
     let entries = ctx.engine.history();
     if ctx.json {
         return ui::json(&entries.iter().take(limit).collect::<Vec<_>>());
     }
+    // Si no se pudo leer, se dice: "está vacío" a secas sería mentira.
+    if let Some(w) = ctx.engine.take_warning() {
+        anstream::println!("{} {w}", ui::yellow("●"));
+    }
+    let note = admin_history_note(ctx);
     if entries.is_empty() {
         anstream::println!("{}", tr("El historial está vacío."));
+        if let Some(n) = &note {
+            anstream::println!("{}", ui::dim(n));
+        }
         return Ok(());
     }
     let when: Vec<String> = entries.iter().take(limit).map(|e| ui::ago(e.at)).collect();
@@ -38,6 +82,9 @@ pub fn history(ctx: &Ctx, limit: usize) -> Result<(), String> {
         anstream::println!("{}", ui::dim(&format!("… {} {}", entries.len() - limit, tr("más (-n para ver más)"))));
     }
     anstream::println!("\n{} {}", ui::dim(tr("Para deshacer una entrada:")), ui::cyan("prune undo <N>"));
+    if let Some(n) = &note {
+        anstream::println!("{}", ui::dim(n));
+    }
     Ok(())
 }
 
@@ -59,10 +106,13 @@ fn pick(entries: &[JournalEntry], which: Option<u64>) -> Result<&JournalEntry, S
 pub fn undo(ctx: &Ctx, which: Option<u64>, force: bool) -> Result<(), String> {
     let entries = ctx.engine.history();
     let entry = pick(&entries, which)?;
-    ctx.need_write()?;
     ctx.need_yes_in_json()?;
     if !ctx.json {
         anstream::println!("{}  {}", ui::bold(&entry.label), ui::dim(&ui::ago(entry.at)));
+        anstream::println!("{}", tr("Deshacer esta entrada va a escribir:"));
+        for line in undo_plan(entry) {
+            anstream::println!("  {line}");
+        }
     }
     if !ui::confirm(tr("¿Deshacer esta entrada?"), ctx.yes)? {
         anstream::println!("{}", tr("No se cambió nada."));
@@ -136,6 +186,26 @@ mod tests {
 
     fn entry(id: u64, json_extra: &str) -> JournalEntry {
         serde_json::from_str(&format!(r#"{{"id":{id},"at":{},"label":"x","changes":[]{json_extra}}}"#, id / 1000)).unwrap()
+    }
+
+    /// Lo que se confirma al deshacer sale de lo que la entrada guarda, no de su título.
+    #[test]
+    fn el_plan_de_deshacer_sale_del_contenido() {
+        let e: JournalEntry = serde_json::from_str(
+            r#"{"id":1000,"at":1,"label":"Un título cualquiera",
+                "changes":[{"tweak_id":"taskbar.align_left","hive":"HKCU","path":"Software\\Prueba","name":"Valor","before":{"vtype":4,"bytes":[1,0,0,0]}},
+                           {"tweak_id":"taskbar.align_left","hive":"HKLM","path":"SOFTWARE\\Otra","name":"Nuevo","before":null}],
+                "network":{"before":[{"guid":"{g}","name":"Wi-Fi","v4":{"servers":["6.6.6.6"]},"v6":{"servers":[]}}],"after":[]}}"#,
+        )
+        .unwrap();
+        let plan = undo_plan(&e);
+        assert_eq!(plan.len(), 3, "{plan:?}");
+        assert!(plan[0].starts_with(r"HKCU\Software\Prueba\Valor → "), "{plan:?}");
+        assert!(plan[1].starts_with(r"HKLM\SOFTWARE\Otra\Nuevo → "), "{plan:?}");
+        // Un cambio de DNS escondido detrás de otro título queda a la vista, con el servidor.
+        assert!(plan[2].contains("Wi-Fi") && plan[2].contains("6.6.6.6"), "{plan:?}");
+        // Y una entrada que solo quitó apps no escribe nada.
+        assert!(undo_plan(&entry(1, r#","removed_apps":["A_1"]"#)).is_empty());
     }
 
     #[test]

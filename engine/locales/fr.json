@@ -43,6 +43,7 @@
     "journal_unreadable": "Impossible de lire l'historique ({error}) ou de le sauvegarder ({backup_error}).",
     "journal_save_failed": "Impossible d'enregistrer l'historique : {error}",
     "journal_busy": "Une autre fenêtre de P-Rune utilise l'historique. Réessayez dans quelques secondes.",
+    "journal_read_failed": "Impossible de lire l'historique : {error}",
     "entry_missing": "Entrée d'historique introuvable",
     "entry_undone": "Déjà annulé",
     "apps_not_restorable": "Les apps supprimées ne peuvent pas être restaurées d'ici : réinstallez-les depuis le Microsoft Store.",

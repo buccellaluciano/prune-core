@@ -176,7 +176,6 @@
   "No queda ninguna app del catálogo instalada.": "Установленных приложений из каталога не осталось.",
   "No se borró nada.": "Ничего не удалено.",
   "No se cambió nada.": "Ничего не изменено.",
-  "No se encontró la carpeta %APPDATA%.": "Папка %APPDATA% не найдена.",
   "No se encontró la conexión que sale a internet. Elegí una con --adapter: {names}": "Не найдено подключение, которое выходит в интернет. Выберите его через --adapter: {names}",
   "No se escribió nada.": "Ничего не записано.",
   "No se pudieron aplicar {n} cambios.": "Не удалось применить изменений: {n}.",
@@ -193,7 +192,6 @@
   "Opciones": "Опции",
   "Opciones:": "Варианты:",
   "Opción desconocida": "Неизвестный вариант",
-  "P-Rune está instalado para todo el equipo y guarda el historial donde solo escriben los administradores. Repetí el comando en una terminal de administrador (o con `sudo`).": "P-Rune установлен для всего компьютера и хранит журнал там, куда могут писать только администраторы. Повторите команду в терминале администратора (или с `sudo`).",
   "P-Rune Core: debloater y ajustes para Windows 11, desde la consola.\nSin comando abre la interfaz interactiva.": "P-Rune Core: удаление лишнего и настройки для Windows 11 из терминала.\nБез команды открывает интерактивный интерфейс.",
   "PATH de tu usuario:": "PATH пользователя:",
   "PATH del equipo:": "системный PATH:",
@@ -259,7 +257,6 @@
   "Sin administrador: se puede mirar todo; los ajustes marcados `admin` piden una terminal de administrador.": "Без прав администратора: смотреть можно всё; для настроек с пометкой `admin` нужен терминал администратора.",
   "Sin confirmación: se volvió al DNS anterior.": "Подтверждения нет: возвращён прежний DNS.",
   "Solo esta categoría (id o parte del nombre)": "Только эта категория (id или часть названия)",
-  "Solo lectura: P-Rune está instalado para todo el equipo. Abrí una terminal de administrador para cambiar algo.": "Только чтение: P-Rune установлен для всего компьютера. Чтобы что-то изменить, откройте терминал администратора.",
   "Solo los instalados": "Только установленные",
   "Solo los que están aplicados": "Только применённые",
   "Solo los que tienen actualización": "Только с обновлением",
@@ -290,7 +287,6 @@
   "Vuelve a arrancar con Windows": "Снова включить запуск вместе с Windows",
   "Vuelve ajustes a como los trae Windows": "Вернуть настройки к значениям Windows по умолчанию",
   "Vuelve al DNS automático (el que da el router)": "Вернуть автоматический DNS (тот, что выдаёт роутер)",
-  "Vuelve cada valor a como estaba antes.": "Возвращает каждое значение к прежнему.",
   "Windows Update: pausar y horas activas": "Windows Update: пауза и период активности",
   "Windows lo vuelve a armar, pero los próximos arranques y aperturas de apps son más lentos. No suele convenir.": "Windows создаст его заново, но следующие загрузки системы и запуски приложений будут медленнее. Обычно не стоит.",
   "Windows protege este valor (UCPD): puede que no deje cambiarlo.": "Windows защищает этот параметр (UCPD): возможно, изменить его не получится.",
@@ -408,5 +404,8 @@
   "¿Quitar {n} apps? No se puede deshacer desde P-Rune: se reinstalan desde Microsoft Store.": "Удалить приложения ({n})? В P-Rune это нельзя отменить: их переустанавливают из Microsoft Store.",
   "Último:": "Последняя:",
   "● aplicado  ○ como lo trae Windows  ◐ a medias  – no disponible": "● применено  ○ по умолчанию  ◐ частично  – недоступно",
-  "no": "нет"
+  "no": "нет",
+  "Trabajando…": "Выполняется…",
+  "Deshacer esta entrada va a escribir:": "Отмена этой записи запишет:",
+  "Hay además un historial de administrador con {n} entradas: abrí una terminal de administrador para verlo.": "Есть также журнал администратора (записей: {n}): откройте терминал администратора, чтобы его увидеть."
 }

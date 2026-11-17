@@ -43,6 +43,7 @@
     "journal_unreadable": "Impossibile leggere la cronologia ({error}) o farne una copia ({backup_error}).",
     "journal_save_failed": "Impossibile salvare la cronologia: {error}",
     "journal_busy": "Un'altra finestra di P-Rune sta usando la cronologia. Riprova tra qualche secondo.",
+    "journal_read_failed": "Impossibile leggere la cronologia: {error}",
     "entry_missing": "Voce della cronologia inesistente",
     "entry_undone": "Già annullato",
     "apps_not_restorable": "Le app rimosse non si possono ripristinare da qui: reinstallale dal Microsoft Store.",

@@ -36,8 +36,8 @@ deja en el PATH del equipo: abrís una terminal nueva y escribís `prune`. No ti
 doble clic, Windows pide permiso de administrador y listo.
 
 ```powershell
-msiexec /i P-Rune-Core_0.1.0_x64.msi /qn              # sin ventanas, para desplegarlo
-msiexec /i P-Rune-Core_0.1.0_x64.msi ADDTOPATH=0      # sin tocar el PATH
+msiexec /i P-Rune-Core_0.1.1_x64.msi /qn              # sin ventanas, para desplegarlo
+msiexec /i P-Rune-Core_0.1.1_x64.msi ADDTOPATH=0      # sin tocar el PATH
 ```
 
 Se quita desde "Aplicaciones instaladas", y con eso sale también del PATH.
@@ -53,10 +53,7 @@ prune
 `prune path remove` lo saca del PATH y `prune path status` dice si está. Como el PATH apunta a
 la carpeta donde esté el exe, dejalo en un lugar fijo antes de agregarlo.
 
-- **Qué cambia entre una y otra:** instalado, el historial vive en `Program Files\P-Rune
-  Core\data`, donde solo escriben los administradores, así que para aplicar o deshacer hace
-  falta una terminal de administrador (mirar, no). Sin instalar, el historial va en
-  `%APPDATA%\com.debloater.app` y los ajustes de tu usuario se aplican sin administrador.
+- Las dos funcionan igual: lo único que cambia es dónde queda el exe y a qué PATH va.
 - El SHA-256 de cada archivo está en las notas del release, para verificar la descarga.
 - Ninguno de los dos está firmado con un certificado de código: Windows SmartScreen puede
   mostrar "editor desconocido".
@@ -108,20 +105,39 @@ prune restore create               # punto de restauración
 - **Idiomas:** español, inglés, portugués, francés, alemán, italiano, chino, japonés y ruso,
   ayuda incluida (`--lang` o `PRUNE_LANG`; por defecto, el de Windows).
 
-## Con P-Rune en la misma PC
+## El historial
+
+Hay dos historiales, y cada uno se lee y se escribe solo con los permisos con los que se creó:
+
+- **En una terminal de administrador**, el historial vive en Program Files, donde solo
+  escriben los administradores: `Program Files\P-Rune Core\data`.
+- **Sin administrador**, en `%APPDATA%\com.debloater.app`. Ahí quedan los ajustes de tu
+  usuario que aplicaste sin elevar.
+
+Lo que aplicaste como administrador se deshace desde una terminal de administrador, y lo que
+aplicaste sin serlo, desde una común. `prune history` sin administrador avisa si además hay
+un historial de administrador.
+
+Están separados a propósito. Deshacer es volver a escribir lo que el historial dice, y en
+`%APPDATA%` escribe cualquier programa tuyo: si Core lo leyera como administrador, un
+programa sin permisos podría dejarle anotado qué escribir.
+
+### Con P-Rune en la misma PC
 
 Si la app de escritorio está instalada (en su carpeta por defecto, `Program Files\P-Rune`),
-Core usa su historial, esté instalado o no: lo que aplicás con una se puede deshacer desde la
-otra. Ese historial vive donde solo escriben los administradores, así que en ese caso Core
-necesita una terminal de administrador para cambiar algo; sin ella, se puede mirar todo.
+Core usa su historial cuando corre como administrador: lo que aplicás con una se puede
+deshacer desde la otra.
 
 ## Seguridad
 
 - **Nada se aplica a ciegas:** el estado de cada ajuste se lee del registro real, y antes de
   cambiar algo se muestra el plan, valor por valor.
-- **Deshacer exacto y validado:** el historial guarda el valor que había. Antes de deshacer,
-  cada entrada se compara con el catálogo: un historial manipulado no puede hacer que Core
-  escriba en otra parte del registro.
+- **Deshacer exacto y a la vista:** el historial guarda el valor que había, y antes de
+  deshacer se muestra qué se va a escribir, armado con el contenido de la entrada y no con su
+  título. Cada entrada se compara además con el catálogo.
+- **El historial de administrador no sale de Program Files:** un proceso de administrador
+  nunca lee ni importa un historial guardado donde escribe cualquier programa (ver
+  [El historial](#el-historial)).
 - **Catálogo cerrado:** solo se tocan los ajustes, las apps y los programas del catálogo que
   viene adentro del exe; nunca un id o una ruta escritos a mano.
 - **El PATH se edita con cuidado:** `prune path` agrega o quita solo su propia entrada y deja

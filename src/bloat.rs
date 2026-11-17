@@ -80,7 +80,6 @@ pub fn remove_apps(ctx: &Ctx, picked: &[&BloatView], deprovision: bool) -> Resul
     if let Some(user) = &ctx.info.foreign_user {
         return Err(t!("foreign_user_remove", user = user));
     }
-    ctx.need_write()?;
     ctx.need_yes_in_json()?;
     if !ctx.json {
         for a in picked {
@@ -137,7 +136,6 @@ pub fn remove_now(ctx: &Ctx, ids: &[String], deprovision: bool) -> Result<(Vec<R
     if let Some(user) = &ctx.info.foreign_user {
         return Err(t!("foreign_user_remove", user = user));
     }
-    ctx.need_write()?;
     let results = appx::remove(ids, deprovision && ctx.info.elevated)?;
     let removed: Vec<String> = results.iter().flat_map(|r| r.removed.clone()).collect();
     // Queda anotado en el historial: así `prune drift` avisa si Windows las vuelve a instalar.

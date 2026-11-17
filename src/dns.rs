@@ -193,7 +193,6 @@ fn ask_within(question: &str, secs: u64) -> bool {
 fn change(ctx: &Ctx, adapter: Option<&str>, wanted: Option<Servers>, doh: DohMode, name: &str) -> Result<(), String> {
     // Admin, dominio, directiva o un cambio anterior sin confirmar: se dice antes de probar.
     network::guard()?;
-    ctx.need_write()?;
     ctx.need_yes_in_json()?;
     let adapters = network::adapters();
     let on = pick_adapters(&adapters, adapter)?;

@@ -176,7 +176,6 @@
   "No queda ninguna app del catálogo instalada.": "No app from the catalog is installed.",
   "No se borró nada.": "Nothing was deleted.",
   "No se cambió nada.": "Nothing was changed.",
-  "No se encontró la carpeta %APPDATA%.": "The %APPDATA% folder was not found.",
   "No se encontró la conexión que sale a internet. Elegí una con --adapter: {names}": "Could not find the connection that reaches the internet. Pick one with --adapter: {names}",
   "No se escribió nada.": "Nothing was written.",
   "No se pudieron aplicar {n} cambios.": "{n} changes could not be applied.",
@@ -193,7 +192,6 @@
   "Opciones": "Options",
   "Opciones:": "Options:",
   "Opción desconocida": "Unknown option",
-  "P-Rune está instalado para todo el equipo y guarda el historial donde solo escriben los administradores. Repetí el comando en una terminal de administrador (o con `sudo`).": "P-Rune is installed for the whole machine and keeps its history where only administrators can write. Run the command again from an administrator terminal (or with `sudo`).",
   "P-Rune Core: debloater y ajustes para Windows 11, desde la consola.\nSin comando abre la interfaz interactiva.": "P-Rune Core: debloater and tweaks for Windows 11, from the terminal.\nWith no command it opens the interactive interface.",
   "PATH de tu usuario:": "your user PATH:",
   "PATH del equipo:": "machine PATH:",
@@ -259,7 +257,6 @@
   "Sin administrador: se puede mirar todo; los ajustes marcados `admin` piden una terminal de administrador.": "Not elevated: everything can be inspected; tweaks marked `admin` need an administrator terminal.",
   "Sin confirmación: se volvió al DNS anterior.": "Not confirmed: went back to the previous DNS.",
   "Solo esta categoría (id o parte del nombre)": "Only this category (id or part of the name)",
-  "Solo lectura: P-Rune está instalado para todo el equipo. Abrí una terminal de administrador para cambiar algo.": "Read-only: P-Rune is installed for the whole machine. Open an administrator terminal to change anything.",
   "Solo los instalados": "Only the installed ones",
   "Solo los que están aplicados": "Only the applied ones",
   "Solo los que tienen actualización": "Only the ones with an update",
@@ -290,7 +287,6 @@
   "Vuelve a arrancar con Windows": "Starts with Windows again",
   "Vuelve ajustes a como los trae Windows": "Puts tweaks back to the Windows default",
   "Vuelve al DNS automático (el que da el router)": "Goes back to automatic DNS (the one the router gives)",
-  "Vuelve cada valor a como estaba antes.": "Puts every value back as it was.",
   "Windows Update: pausar y horas activas": "Windows Update: pause and active hours",
   "Windows lo vuelve a armar, pero los próximos arranques y aperturas de apps son más lentos. No suele convenir.": "Windows rebuilds it, but the next boots and app launches are slower. Usually not worth it.",
   "Windows protege este valor (UCPD): puede que no deje cambiarlo.": "Windows protects this value (UCPD): it may refuse the change.",
@@ -408,5 +404,8 @@
   "¿Quitar {n} apps? No se puede deshacer desde P-Rune: se reinstalan desde Microsoft Store.": "Remove {n} apps? This cannot be undone from P-Rune: they are reinstalled from Microsoft Store.",
   "Último:": "Latest:",
   "● aplicado  ○ como lo trae Windows  ◐ a medias  – no disponible": "● applied  ○ Windows default  ◐ partial  – not available",
-  "no": "no"
+  "no": "no",
+  "Trabajando…": "Working…",
+  "Deshacer esta entrada va a escribir:": "Undoing this entry will write:",
+  "Hay además un historial de administrador con {n} entradas: abrí una terminal de administrador para verlo.": "There is also an administrator history with {n} entries: open an administrator terminal to see it."
 }

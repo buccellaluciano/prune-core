@@ -176,7 +176,6 @@
   "No queda ninguna app del catálogo instalada.": "没有已安装的目录内应用。",
   "No se borró nada.": "未删除任何内容。",
   "No se cambió nada.": "未做任何更改。",
-  "No se encontró la carpeta %APPDATA%.": "找不到 %APPDATA% 文件夹。",
   "No se encontró la conexión que sale a internet. Elegí una con --adapter: {names}": "找不到用于上网的连接。请用 --adapter 指定一个：{names}",
   "No se escribió nada.": "未写入任何内容。",
   "No se pudieron aplicar {n} cambios.": "有 {n} 项更改未能应用。",
@@ -193,7 +192,6 @@
   "Opciones": "选项",
   "Opciones:": "选项：",
   "Opción desconocida": "未知选项",
-  "P-Rune está instalado para todo el equipo y guarda el historial donde solo escriben los administradores. Repetí el comando en una terminal de administrador (o con `sudo`).": "P-Rune 是为所有用户安装的，历史记录保存在只有管理员才能写入的位置。请在管理员终端中重新运行该命令（或使用 `sudo`）。",
   "P-Rune Core: debloater y ajustes para Windows 11, desde la consola.\nSin comando abre la interfaz interactiva.": "P-Rune Core：适用于 Windows 11 的精简与优化工具，在终端中使用。\n不带命令时打开交互界面。",
   "PATH de tu usuario:": "你的用户 PATH：",
   "PATH del equipo:": "系统 PATH：",
@@ -259,7 +257,6 @@
   "Sin administrador: se puede mirar todo; los ajustes marcados `admin` piden una terminal de administrador.": "非管理员：可以查看全部内容；标有 `admin` 的优化项需要管理员终端。",
   "Sin confirmación: se volvió al DNS anterior.": "未确认：已恢复之前的 DNS。",
   "Solo esta categoría (id o parte del nombre)": "仅此分类（id 或名称的一部分）",
-  "Solo lectura: P-Rune está instalado para todo el equipo. Abrí una terminal de administrador para cambiar algo.": "只读：P-Rune 是为所有用户安装的。要做更改，请打开管理员终端。",
   "Solo los instalados": "仅已安装的",
   "Solo los que están aplicados": "仅已应用的",
   "Solo los que tienen actualización": "仅有更新的",
@@ -290,7 +287,6 @@
   "Vuelve a arrancar con Windows": "恢复随 Windows 启动",
   "Vuelve ajustes a como los trae Windows": "将优化项还原为 Windows 默认",
   "Vuelve al DNS automático (el que da el router)": "恢复为自动 DNS（由路由器提供）",
-  "Vuelve cada valor a como estaba antes.": "将每个值恢复原样。",
   "Windows Update: pausar y horas activas": "Windows Update：暂停和使用时段",
   "Windows lo vuelve a armar, pero los próximos arranques y aperturas de apps son más lentos. No suele convenir.": "Windows 会重新生成，但接下来几次开机和打开应用会变慢。通常不建议清理。",
   "Windows protege este valor (UCPD): puede que no deje cambiarlo.": "Windows 保护此值（UCPD）：可能不允许修改。",
@@ -408,5 +404,8 @@
   "¿Quitar {n} apps? No se puede deshacer desde P-Rune: se reinstalan desde Microsoft Store.": "移除 {n} 个应用？无法在 P-Rune 中撤销：需要从 Microsoft Store 重新安装。",
   "Último:": "最近：",
   "● aplicado  ○ como lo trae Windows  ◐ a medias  – no disponible": "● 已应用  ○ Windows 默认  ◐ 部分  – 不可用",
-  "no": "否"
+  "no": "否",
+  "Trabajando…": "正在处理…",
+  "Deshacer esta entrada va a escribir:": "撤销此条目将写入：",
+  "Hay además un historial de administrador con {n} entradas: abrí una terminal de administrador para verlo.": "另有一份管理员历史记录，共 {n} 条：请打开管理员终端查看。"
 }

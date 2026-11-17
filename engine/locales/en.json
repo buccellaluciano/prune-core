@@ -43,6 +43,7 @@
     "journal_unreadable": "The history couldn't be read ({error}) or backed up ({backup_error}).",
     "journal_save_failed": "Couldn't save the history: {error}",
     "journal_busy": "Another P-Rune window is using the history. Try again in a few seconds.",
+    "journal_read_failed": "Couldn't read the history: {error}",
     "entry_missing": "History entry not found",
     "entry_undone": "Already undone",
     "apps_not_restorable": "Removed apps can't be restored from here: reinstall them from the Microsoft Store.",

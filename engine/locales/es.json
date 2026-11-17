@@ -44,6 +44,7 @@
     "journal_unreadable": "El historial no se pudo leer ({error}) ni respaldar ({backup_error}).",
     "journal_save_failed": "No se pudo guardar el historial: {error}",
     "journal_busy": "Otra ventana de P-Rune está usando el historial. Probá de nuevo en unos segundos.",
+    "journal_read_failed": "No se pudo leer el historial: {error}",
     "entry_missing": "Entrada de historial inexistente",
     "entry_undone": "Ya se deshizo",
     "apps_not_restorable": "Las apps quitadas no se pueden restaurar desde acá: reinstalalas desde Microsoft Store.",

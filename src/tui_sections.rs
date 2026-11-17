@@ -13,10 +13,6 @@ pub enum Section {
     History,
 }
 
-fn read_only() -> String {
-    tr("Solo lectura: P-Rune está instalado para todo el equipo. Abrí una terminal de administrador para cambiar algo.").into()
-}
-
 /// Una lista a pantalla completa con su fila seleccionada (o un texto si está vacía).
 fn render_list(f: &mut Frame, area: Rect, title: &str, rows: Vec<ListItem<'static>>, state: &mut ListState, selected: usize, empty: &str) {
     let is_empty = rows.is_empty();
@@ -77,7 +73,6 @@ impl App {
     fn on_key_bloat(&mut self, key: KeyEvent) {
         let Some(id) = self.bloat.as_ref().and_then(|b| b.get(self.bloat_row)).map(|a| a.id.clone()) else { return };
         match key.code {
-            KeyCode::Char(' ') | KeyCode::Enter if !self.writable => self.message = Some(read_only()),
             KeyCode::Char(' ') => {
                 if self.bloat_marked.contains(&id) {
                     self.bloat_marked.retain(|m| m != &id);
@@ -100,14 +95,12 @@ impl App {
             return;
         }
         let Some(e) = self.history.get(self.history_row) else { return };
-        if !self.writable {
-            self.message = Some(read_only());
-        } else if e.undone {
+        if e.undone {
             self.message = Some(tr("Esa entrada ya se deshizo.").into());
         } else if !journal::undoable(e) {
             self.message = Some(tr("Las apps quitadas no vuelven desde acá: se reinstalan desde Microsoft Store.").into());
         } else {
-            self.modal = Modal::ConfirmUndo { id: e.id, label: e.label.clone() };
+            self.modal = Modal::ConfirmUndo { id: e.id, label: e.label.clone(), lines: journal::undo_plan(e) };
         }
     }
 
@@ -262,8 +255,8 @@ mod tests {
         serde_json::from_str(&format!(r#"{{"id":{id},"at":{},"label":"Entrada {id}","changes":[]{extra}}}"#, id / 1000)).unwrap()
     }
 
-    fn with_bloat(writable: bool) -> App {
-        let mut a = app(true, writable);
+    fn with_bloat() -> App {
+        let mut a = app(true);
         assert_eq!(press(&mut a, KeyCode::Char('2')), Action::LoadBloat);
         a.set_bloat(Ok(vec![bloat("Clipchamp.Clipchamp", "Clipchamp", Risk::Safe), bloat("Microsoft.Windows.Photos", "Fotos", Risk::Advanced)]));
         a
@@ -271,7 +264,7 @@ mod tests {
 
     #[test]
     fn las_apps_se_leen_al_entrar_la_primera_vez() {
-        let mut a = with_bloat(true);
+        let mut a = with_bloat();
         // Ya leídas: volver a la sección no las relee; r sí.
         assert_eq!(press(&mut a, KeyCode::Char('1')), Action::None);
         assert_eq!(press(&mut a, KeyCode::Char('2')), Action::None);
@@ -280,7 +273,7 @@ mod tests {
 
     #[test]
     fn quitar_apps_pide_confirmacion() {
-        let mut a = with_bloat(true);
+        let mut a = with_bloat();
         // Sin marcas, Enter es la seleccionada.
         press(&mut a, KeyCode::Down);
         press(&mut a, KeyCode::Enter);
@@ -297,7 +290,7 @@ mod tests {
 
     #[test]
     fn despues_de_quitar_se_muestra_el_resultado() {
-        let mut a = with_bloat(true);
+        let mut a = with_bloat();
         press(&mut a, KeyCode::Char(' '));
         let results = vec![RemoveResult { id: "Clipchamp.Clipchamp".into(), ok: true, removed: vec!["Clipchamp.Clipchamp_1.0_x64".into()], error: None }];
         a.bloat_removed(Ok((results, None)), Ok(vec![bloat("Microsoft.Windows.Photos", "Fotos", Risk::Advanced)]));
@@ -309,17 +302,8 @@ mod tests {
     }
 
     #[test]
-    fn en_solo_lectura_no_se_quita_nada() {
-        let mut a = with_bloat(false);
-        press(&mut a, KeyCode::Char(' '));
-        assert_eq!(press(&mut a, KeyCode::Enter), Action::None);
-        assert!(a.bloat_marked.is_empty() && matches!(a.modal, Modal::None));
-        assert!(a.message.is_some());
-    }
-
-    #[test]
     fn el_historial_deshace_la_entrada_elegida() {
-        let mut a = app(true, true);
+        let mut a = app(true);
         assert_eq!(press(&mut a, KeyCode::Char('3')), Action::LoadHistory);
         a.set_history(vec![entry(3000, r#","removed_apps":["A_1"]"#), entry(2000, r#","undone":true,"power":{"before":"a","after":"b"}"#), entry(1000, r#","power":{"before":"a","after":"b"}"#)]);
         let s = screen(&mut a, 100, 30);
@@ -338,7 +322,7 @@ mod tests {
 
     #[test]
     fn las_secciones_no_rompen_en_ventana_chica() {
-        let mut a = with_bloat(true);
+        let mut a = with_bloat();
         screen(&mut a, 60, 14);
         press(&mut a, KeyCode::Char('3'));
         screen(&mut a, 60, 14);

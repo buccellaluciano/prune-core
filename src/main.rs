@@ -235,33 +235,16 @@ pub struct Ctx {
     pub yes: bool,
     pub info: SystemInfo,
     pub engine: Engine,
+    /// Como administrador, una carpeta de Program Files; sin administrador, `%APPDATA%`. Son
+    /// dos historiales distintos y nunca se mezclan (ver `paths::journal_dir`).
     pub journal_dir: PathBuf,
-    /// false: P-Rune está instalado en Program Files y esta terminal no es de administrador.
-    /// El historial se puede leer, pero no escribir: no se cambia nada.
-    pub writable: bool,
 }
 
 impl Ctx {
     fn new(global: &Global) -> Result<Self, String> {
         let info = system::info();
-        let user_dir = paths::user_data_dir()
-            .ok_or_else(|| tr("No se encontró la carpeta %APPDATA%.").to_string())?;
-        // Instalado, el historial vive donde solo escriben los administradores (ver
-        // `paths::journal_dir`). Sin admin se lee de ahí igual, para ver lo mismo que la app.
-        let (journal_dir, writable) = match paths::protected_data_dir() {
-            Some(dir) if !info.elevated => (dir, false),
-            _ => (paths::journal_dir(&user_dir), true),
-        };
-        Ok(Self { json: global.json, yes: global.yes, engine: Engine::new(journal_dir.clone()), journal_dir, writable, info })
-    }
-
-    /// Antes de cualquier cambio: sin dónde anotarlo no habría cómo deshacerlo.
-    pub fn need_write(&self) -> Result<(), String> {
-        if self.writable {
-            return Ok(());
-        }
-        Err(tr("P-Rune está instalado para todo el equipo y guarda el historial donde solo escriben los administradores. Repetí el comando en una terminal de administrador (o con `sudo`).")
-        .to_string())
+        let journal_dir = paths::journal_dir(info.elevated)?;
+        Ok(Self { json: global.json, yes: global.yes, engine: Engine::new(journal_dir.clone()), journal_dir, info })
     }
 
     /// En JSON no hay a quién preguntarle: los comandos que cambian algo piden `--yes`.

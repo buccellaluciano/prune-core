@@ -43,6 +43,7 @@
     "journal_unreadable": "无法读取历史记录（{error}），也无法备份（{backup_error}）。",
     "journal_save_failed": "无法保存历史记录：{error}",
     "journal_busy": "另一个 P-Rune 窗口正在使用历史记录。请几秒后重试。",
+    "journal_read_failed": "无法读取历史记录：{error}",
     "entry_missing": "找不到该历史记录条目",
     "entry_undone": "已经撤销过了",
     "apps_not_restorable": "已删除的应用无法在这里恢复：请从 Microsoft Store 重新安装。",

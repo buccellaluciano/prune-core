@@ -176,7 +176,6 @@
   "No queda ninguna app del catálogo instalada.": "カタログ内のアプリはもうインストールされていません。",
   "No se borró nada.": "何も削除していません。",
   "No se cambió nada.": "何も変更していません。",
-  "No se encontró la carpeta %APPDATA%.": "%APPDATA% フォルダーが見つかりませんでした。",
   "No se encontró la conexión que sale a internet. Elegí una con --adapter: {names}": "インターネットに接続している接続が見つかりませんでした。--adapter で指定してください: {names}",
   "No se escribió nada.": "何も書き込んでいません。",
   "No se pudieron aplicar {n} cambios.": "{n} 件の変更を適用できませんでした。",
@@ -193,7 +192,6 @@
   "Opciones": "オプション",
   "Opciones:": "選択肢:",
   "Opción desconocida": "不明な選択肢",
-  "P-Rune está instalado para todo el equipo y guarda el historial donde solo escriben los administradores. Repetí el comando en una terminal de administrador (o con `sudo`).": "P-Rune はすべてのユーザー向けにインストールされており、履歴は管理者だけが書き込める場所に保存されます。管理者権限のターミナルで (または `sudo` を付けて) コマンドをもう一度実行してください。",
   "P-Rune Core: debloater y ajustes para Windows 11, desde la consola.\nSin comando abre la interfaz interactiva.": "P-Rune Core：ターミナルから使う、Windows 11 向けの不要アプリ削除・調整ツール。\nコマンドを指定しないと対話型の画面を開きます。",
   "PATH de tu usuario:": "ユーザーの PATH:",
   "PATH del equipo:": "システムの PATH:",
@@ -259,7 +257,6 @@
   "Sin administrador: se puede mirar todo; los ajustes marcados `admin` piden una terminal de administrador.": "管理者権限なし：すべて表示できますが、`admin` と表示された調整には管理者権限のターミナルが必要です。",
   "Sin confirmación: se volvió al DNS anterior.": "確認されなかったため、元の DNS に戻しました。",
   "Solo esta categoría (id o parte del nombre)": "このカテゴリのみ (ID または名前の一部)",
-  "Solo lectura: P-Rune está instalado para todo el equipo. Abrí una terminal de administrador para cambiar algo.": "読み取り専用：P-Rune はすべてのユーザー向けにインストールされています。変更するには管理者権限のターミナルを開いてください。",
   "Solo los instalados": "インストール済みのもののみ",
   "Solo los que están aplicados": "適用済みのもののみ",
   "Solo los que tienen actualización": "更新があるもののみ",
@@ -290,7 +287,6 @@
   "Vuelve a arrancar con Windows": "Windows と同時に起動するように戻します",
   "Vuelve ajustes a como los trae Windows": "調整を Windows の既定に戻します",
   "Vuelve al DNS automático (el que da el router)": "DNS を自動 (ルーターが割り当てるもの) に戻します",
-  "Vuelve cada valor a como estaba antes.": "それぞれの値を以前の状態に戻します。",
   "Windows Update: pausar y horas activas": "Windows Update：一時停止とアクティブ時間",
   "Windows lo vuelve a armar, pero los próximos arranques y aperturas de apps son más lentos. No suele convenir.": "Windows が作り直しますが、次回以降の起動やアプリの起動が遅くなります。通常はおすすめしません。",
   "Windows protege este valor (UCPD): puede que no deje cambiarlo.": "Windows はこの値を保護しています (UCPD)：変更できない場合があります。",
@@ -408,5 +404,8 @@
   "¿Quitar {n} apps? No se puede deshacer desde P-Rune: se reinstalan desde Microsoft Store.": "{n} 個のアプリを削除しますか？P-Rune からは元に戻せません：Microsoft Store から再インストールしてください。",
   "Último:": "最新:",
   "● aplicado  ○ como lo trae Windows  ◐ a medias  – no disponible": "● 適用済み  ○ Windows の既定  ◐ 一部のみ  – 利用不可",
-  "no": "いいえ"
+  "no": "いいえ",
+  "Trabajando…": "処理中…",
+  "Deshacer esta entrada va a escribir:": "このエントリを元に戻すと、次の内容が書き込まれます:",
+  "Hay además un historial de administrador con {n} entradas: abrí una terminal de administrador para verlo.": "管理者の履歴が別に {n} 件あります。表示するには管理者ターミナルを開いてください。"
 }

@@ -79,15 +79,12 @@ pub fn wu(ctx: &Ctx, cmd: Option<WuCmd>) -> Result<(), String> {
     let change = match cmd.unwrap_or(WuCmd::Status) {
         WuCmd::Status => return wu_status(ctx),
         WuCmd::Pause { dias } => {
-            ctx.need_write()?;
             wupdate::pause(dias)?
         }
         WuCmd::Resume => {
-            ctx.need_write()?;
             wupdate::resume()?
         }
         WuCmd::Hours { inicio, fin, auto } => {
-            ctx.need_write()?;
             match (inicio, fin, auto) {
                 (Some(a), Some(b), false) => wupdate::hours(Some((a, b)))?,
                 (None, None, true) => wupdate::hours(None)?,
@@ -178,7 +175,6 @@ pub fn startup(ctx: &Ctx, cmd: Option<StartupCmd>) -> Result<(), String> {
         StartupCmd::Disable { nombre } => (nombre, false),
         StartupCmd::Enable { nombre } => (nombre, true),
     };
-    ctx.need_write()?;
     let item = find_startup(&status.items, &name)?;
     let change = startup::set(item.source, &item.name, enabled)?;
     finish(ctx, change, startup::label, |c| ctx.engine.record_startup(c), |c| drop(startup::restore(c)))
@@ -239,7 +235,6 @@ pub fn proxy(ctx: &Ctx, cmd: Option<ProxyCmd>) -> Result<(), String> {
         ProxyCmd::Pac { estado } => (proxy::Kind::Pac, estado),
         ProxyCmd::Auto { estado } => (proxy::Kind::AutoDetect, estado),
     };
-    ctx.need_write()?;
     let change = proxy::set(kind, matches!(state, Switch::On))?;
     finish(ctx, change, proxy::label, |c| ctx.engine.record_proxy(c), |c| drop(proxy::restore(c)))
 }

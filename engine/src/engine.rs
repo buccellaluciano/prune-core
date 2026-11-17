@@ -678,28 +678,61 @@ impl Engine {
         }
     }
 
-    /// Lee el historial. Si existe pero no se puede interpretar (dañado o de un formato
-    /// incompatible), lo aparta con otro nombre en vez de pisarlo, y deja un aviso.
-    fn load(&self) -> Vec<JournalEntry> {
-        let bytes = match fs::read(&self.journal_path) {
-            Ok(b) => b,
-            Err(_) => return Vec::new(),
-        };
-        match serde_json::from_slice(&bytes) {
-            Ok(entries) => entries,
-            Err(e) => {
-                let backup = self.journal_path.with_file_name(format!("journal.danado-{}.json", now_ms()));
-                let msg = match fs::rename(&self.journal_path, &backup) {
-                    Ok(()) => t!("journal_unreadable_backup", error = e, path = backup.display()),
-                    Err(re) => t!("journal_unreadable", error = e, backup_error = re),
-                };
-                *self.warning.lock().unwrap() = Some(msg);
-                Vec::new()
+    /// Los bytes del historial; None si todavía no existe. Cualquier otro error (sin permiso,
+    /// o el archivo tomado por otro programa) es un error de verdad: tratarlo como "no hay
+    /// historial" haría que el próximo guardado pise el que sí existe.
+    fn read_bytes(&self) -> Result<Option<Vec<u8>>, String> {
+        let mut tries = 0;
+        loop {
+            match fs::read(&self.journal_path) {
+                Ok(bytes) => return Ok(Some(bytes)),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+                // Otro programa lo tiene abierto un instante (un antivirus, un respaldo): se reintenta.
+                Err(_) if tries < 20 => {
+                    tries += 1;
+                    std::thread::sleep(Duration::from_millis(15));
+                }
+                Err(e) => return Err(t!("journal_read_failed", error = e)),
             }
         }
     }
 
-    fn take_warning(&self) -> Option<String> {
+    /// Para mirar (historial, lo que Windows volvió atrás): nunca toca el archivo. Si no se
+    /// puede leer o interpretar, devuelve vacío y deja el aviso para quien lo muestre.
+    fn load_for_read(&self) -> Vec<JournalEntry> {
+        let parsed = self.read_bytes().and_then(|bytes| match bytes {
+            None => Ok(Vec::new()),
+            Some(b) => serde_json::from_slice(&b).map_err(|e| t!("journal_read_failed", error = e)),
+        });
+        parsed.unwrap_or_else(|msg| {
+            *self.warning.lock().unwrap() = Some(msg);
+            Vec::new()
+        })
+    }
+
+    /// Para cambiar algo. Si el historial existe pero no se puede interpretar (dañado o de un
+    /// formato incompatible), lo aparta con otro nombre en vez de pisarlo y deja un aviso. Si
+    /// no se puede leer, o no se puede apartar, es un error: no se cambia nada.
+    fn load_for_write(&self) -> Result<Vec<JournalEntry>, String> {
+        let Some(bytes) = self.read_bytes()? else { return Ok(Vec::new()) };
+        match serde_json::from_slice(&bytes) {
+            Ok(entries) => Ok(entries),
+            Err(e) => {
+                let backup = self.journal_path.with_file_name(format!("journal.danado-{}.json", now_ms()));
+                match fs::rename(&self.journal_path, &backup) {
+                    Ok(()) => {
+                        *self.warning.lock().unwrap() = Some(t!("journal_unreadable_backup", error = e, path = backup.display()));
+                        Ok(Vec::new())
+                    }
+                    Err(re) => Err(t!("journal_unreadable", error = e, backup_error = re)),
+                }
+            }
+        }
+    }
+
+    /// El aviso pendiente, si hay (por ejemplo, que el historial no se pudo leer). Se muestra
+    /// una vez.
+    pub fn take_warning(&self) -> Option<String> {
         self.warning.lock().unwrap().take()
     }
 
@@ -727,7 +760,7 @@ impl Engine {
 
     pub fn history(&self) -> Vec<JournalEntry> {
         let _g = self.lock.lock().unwrap();
-        let mut h = self.load();
+        let mut h = self.load_for_read();
         h.reverse();
         for e in &mut h {
             e.label = entry_label(e);
@@ -738,7 +771,7 @@ impl Engine {
     pub fn record_removed_apps(&self, label: String, apps: Vec<String>) -> Result<(), String> {
         let _g = self.lock.lock().unwrap();
         let _f = self.lock_file()?;
-        let mut entries = self.load();
+        let mut entries = self.load_for_write()?;
         let id = entries.last().map_or(now_ms(), |l| now_ms().max(l.id + 1));
         entries.push(JournalEntry {
             id,
@@ -761,7 +794,7 @@ impl Engine {
     pub fn record_proxy(&self, change: crate::proxy::ProxyChange) -> Result<u64, String> {
         let _g = self.lock.lock().unwrap();
         let _f = self.lock_file()?;
-        let mut entries = self.load();
+        let mut entries = self.load_for_write()?;
         let id = entries.last().map_or(now_ms(), |l| now_ms().max(l.id + 1));
         entries.push(JournalEntry {
             id,
@@ -784,7 +817,7 @@ impl Engine {
     fn push(&self, f: impl FnOnce(u64) -> JournalEntry) -> Result<u64, String> {
         let _g = self.lock.lock().unwrap();
         let _f = self.lock_file()?;
-        let mut entries = self.load();
+        let mut entries = self.load_for_write()?;
         let id = entries.last().map_or(now_ms(), |l| now_ms().max(l.id + 1));
         entries.push(f(id));
         self.save(&entries)?;
@@ -806,7 +839,7 @@ impl Engine {
     pub fn drift(&self, build: u32, installed_bloat: &[(String, String)]) -> Vec<Drift> {
         let entries = {
             let _g = self.lock.lock().unwrap();
-            self.load()
+            self.load_for_read()
         };
         let mut last: std::collections::HashMap<String, (u64, LabelItem)> = Default::default();
         let mut removed: std::collections::HashMap<String, u64> = Default::default();
@@ -857,7 +890,7 @@ impl Engine {
     pub fn record_network(&self, change: crate::network::NetworkChange) -> Result<u64, String> {
         let _g = self.lock.lock().unwrap();
         let _f = self.lock_file()?;
-        let mut entries = self.load();
+        let mut entries = self.load_for_write()?;
         let id = entries.last().map_or(now_ms(), |l| now_ms().max(l.id + 1));
         entries.push(JournalEntry {
             id,
@@ -884,6 +917,12 @@ impl Engine {
         // Se toma antes de tocar el registro: si no se va a poder anotar, no se cambia nada.
         let _f = match self.lock_file() {
             Ok(f) => f,
+            Err(e) => return ApplyReport::new(None, vec![ItemResult { id: "journal".into(), ok: false, error: Some(e) }], Restart::None),
+        };
+        // Y se lee antes también: si el historial no se puede leer, tampoco se va a poder
+        // anotar el cambio, y un cambio sin anotar no se puede deshacer.
+        let mut entries = match self.load_for_write() {
+            Ok(entries) => entries,
             Err(e) => return ApplyReport::new(None, vec![ItemResult { id: "journal".into(), ok: false, error: Some(e) }], Restart::None),
         };
         let mut results = Vec::new();
@@ -973,7 +1012,6 @@ impl Engine {
         let entry_id = if changes.is_empty() && power_change.is_none() {
             None
         } else {
-            let mut entries = self.load();
             let id = now_ms();
             let label = match items.as_slice() {
                 [one] => item_label(one).unwrap_or_default(),
@@ -996,7 +1034,19 @@ impl Engine {
                 wu: None,
             });
             if let Err(e) = self.save(&entries) {
-                results.push(ItemResult { id: "journal".into(), ok: false, error: Some(t!("journal_save_failed", error = e)) });
+                // Sin historial no hay cómo deshacer: mejor no dejar el cambio. Se vuelve atrás
+                // todo lo que se acababa de aplicar y se informa como una sola falla.
+                let entry = entries.pop().expect("la entrada recién agregada");
+                for c in entry.changes.iter().rev() {
+                    let _ = undo_change(c);
+                }
+                if let Some(p) = &entry.power {
+                    let _ = power::revert(p);
+                }
+                let failed = ItemResult { id: "journal".into(), ok: false, error: Some(t!("journal_save_failed", error = e)) };
+                let mut report = ApplyReport::new(None, vec![failed], Restart::None);
+                report.warning = self.take_warning();
+                return report;
             }
             Some(id)
         };
@@ -1014,7 +1064,7 @@ impl Engine {
     pub fn undo(&self, entry_id: u64, force: bool, foreign_user: Option<&str>) -> Result<ApplyReport, String> {
         let _g = self.lock.lock().unwrap();
         let _f = self.lock_file()?;
-        let mut entries = self.load();
+        let mut entries = self.load_for_write()?;
         let warning = self.take_warning();
         let entry = entries
             .iter_mut()
@@ -1224,6 +1274,44 @@ mod tests {
         let _ = fs::remove_dir_all(dir);
     }
 
+    /// Un historial que existe pero no se puede leer no es un historial vacío: no se cambia
+    /// nada y el archivo queda como estaba.
+    #[test]
+    fn historial_que_no_se_puede_leer_no_se_pisa() {
+        let (e, dir) = temp_engine("unreadable");
+        // Una carpeta con el nombre del historial: leerla falla, y no por "no existe".
+        fs::create_dir_all(dir.join("journal.json")).unwrap();
+        assert!(e.record_removed_apps("x".into(), vec!["A_1".into()]).is_err());
+        assert!(e.undo(1, false, None).is_err());
+        // Aplicar avisa antes de tocar el registro.
+        let report = e.apply(&[Desired { id: "test.tweak".into(), applied: true, choice: None }], false, 22631, None);
+        assert!(report.entry_id.is_none());
+        assert_eq!((report.results[0].id.as_str(), report.results[0].ok), ("journal", false));
+        // Mirar no falla: muestra vacío y deja el aviso para mostrar.
+        assert!(e.history().is_empty());
+        assert!(e.take_warning().is_some());
+        assert!(dir.join("journal.json").is_dir());
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    /// Un historial dañado no se toca al mirar; al escribir se aparta, nunca se pisa.
+    #[test]
+    fn historial_danado_solo_se_aparta_al_escribir() {
+        let (e, dir) = temp_engine("corrupt");
+        let path = dir.join("journal.json");
+        fs::write(&path, b"esto no es un historial").unwrap();
+        let backups = || fs::read_dir(&dir).unwrap().filter(|f| f.as_ref().unwrap().file_name().to_string_lossy().starts_with("journal.danado-")).count();
+        assert!(e.history().is_empty());
+        assert!(e.drift(22631, &[]).is_empty());
+        assert!(e.take_warning().is_some());
+        assert_eq!(fs::read(&path).unwrap(), b"esto no es un historial");
+        assert_eq!(backups(), 0);
+        e.record_removed_apps("x".into(), vec!["A_1".into()]).unwrap();
+        assert_eq!(backups(), 1);
+        assert_eq!(e.history().len(), 1);
+        let _ = fs::remove_dir_all(dir);
+    }
+
     fn temp_engine(tag: &str) -> (Engine, PathBuf) {
         let dir = std::env::temp_dir().join(format!("debloater-engine-{}-{tag}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
@@ -1265,7 +1353,8 @@ mod tests {
     fn damaged_journal_is_backed_up_not_overwritten() {
         let (engine, dir) = temp_engine("damaged");
         fs::write(dir.join("journal.json"), b"{ esto no es json").unwrap();
-        assert!(engine.history().is_empty());
+        // Se aparta recién al escribir (mirar no lo toca: ver `historial_danado_solo_se_aparta_al_escribir`).
+        engine.record_removed_apps("x".into(), vec!["A_1".into()]).unwrap();
         let backups: Vec<_> = fs::read_dir(&dir)
             .unwrap()
             .filter_map(|e| e.ok())

@@ -43,6 +43,7 @@
     "journal_unreadable": "Der Verlauf konnte weder gelesen ({error}) noch gesichert werden ({backup_error}).",
     "journal_save_failed": "Der Verlauf konnte nicht gespeichert werden: {error}",
     "journal_busy": "Ein anderes P-Rune-Fenster verwendet gerade den Verlauf. Versuch es in ein paar Sekunden noch einmal.",
+    "journal_read_failed": "Der Verlauf konnte nicht gelesen werden: {error}",
     "entry_missing": "Verlaufseintrag nicht gefunden",
     "entry_undone": "Bereits rückgängig gemacht",
     "apps_not_restorable": "Entfernte Apps lassen sich hier nicht wiederherstellen: Installiere sie über den Microsoft Store neu.",

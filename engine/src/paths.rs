@@ -1,7 +1,8 @@
-//! Dónde guarda P-Rune sus datos. Lo usan todas las interfaces, así comparten el historial:
+//! Dónde guarda P-Rune Core el historial, y con qué permisos se lee cada uno (ver
+//! `journal_dir`). Como administrador comparte el de la app de escritorio, si está instalada:
 //! lo que aplica una se puede deshacer desde la otra.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// Nombre de la carpeta de la app en `%APPDATA%`. Es el `identifier` de la app de escritorio
 /// (P-Rune, en su `tauri.conf.json`): tiene que ser el mismo para que las dos, cuando no
@@ -55,22 +56,43 @@ pub fn protected_data_dir() -> Option<PathBuf> {
     desktop_data_dir().or_else(installed_data_dir)
 }
 
-/// Dónde guardar el historial.
+/// Carpeta propia de Core en Program Files, para el historial de administrador cuando Core
+/// no está instalado ni está la app de escritorio.
+const CORE_DIR: &str = "P-Rune Core";
+
+/// La carpeta del historial según con qué permisos corre el programa (sin crear nada).
 ///
-/// Instalada en Program Files y corriendo como admin, va en `<instalación>\data`: ahí solo
-/// escriben los administradores, así que ningún programa del usuario puede manipularlo.
-/// La primera vez se trae el historial que hubiera en `%APPDATA%` (igual se valida contra el
-/// catálogo antes de deshacer). En desarrollo, sin admin, queda en `%APPDATA%`.
-pub fn journal_dir(user_dir: &Path) -> PathBuf {
-    let protected = (|| {
-        if !crate::system::is_elevated() {
-            return None;
-        }
-        let dir = protected_data_dir()?;
-        std::fs::create_dir_all(&dir).ok()?;
-        Some(dir)
-    })();
-    let Some(dir) = protected else { return user_dir.to_path_buf() };
+/// Hay dos historiales, y cada uno se lee y se escribe solo con el nivel de permisos con el
+/// que se creó:
+/// - **Como administrador**, siempre en Program Files, donde solo escriben los
+///   administradores: la carpeta de la app de escritorio si está instalada, la de este exe si
+///   está instalado, o `Program Files\P-Rune Core\data`.
+/// - **Sin administrador**, en `%APPDATA%`.
+///
+/// Un proceso de administrador nunca lee, importa ni escribe el de `%APPDATA%`: ahí escribe
+/// cualquier programa del usuario, y deshacer es volver a escribir lo que el historial dice
+/// (DNS, registro, inicio de Windows). Con un historial plantado, deshacer como administrador
+/// sería hacerle el trabajo a quien lo plantó.
+fn journal_dir_for(elevated: bool, protected: Option<PathBuf>, program_files: Option<PathBuf>, user: Option<PathBuf>) -> Option<PathBuf> {
+    if elevated { protected.or_else(|| program_files.map(|pf| pf.join(CORE_DIR).join("data"))) } else { user }
+}
+
+/// El historial de administrador de esta PC, si ya existe. Es para avisarle a quien mira sin
+/// administrador que hay otro historial; no crea nada.
+pub fn admin_journal_dir() -> Option<PathBuf> {
+    let dir = journal_dir_for(true, protected_data_dir(), crate::winget::program_files(), None)?;
+    dir.join("journal.json").is_file().then_some(dir)
+}
+
+/// Dónde guardar el historial (ver `journal_dir_for`). Como administrador crea la carpeta si
+/// hace falta; si no se puede, es un error: no se usa otra en su lugar.
+pub fn journal_dir(elevated: bool) -> Result<PathBuf, String> {
+    let dir = journal_dir_for(elevated, protected_data_dir(), crate::winget::program_files(), user_data_dir())
+        .ok_or_else(|| t!("journal_save_failed", error = "Program Files / %APPDATA%"))?;
+    if !elevated {
+        return Ok(dir);
+    }
+    std::fs::create_dir_all(&dir).map_err(|e| t!("journal_save_failed", error = e))?;
     let new = dir.join("journal.json");
     // La 0.1.0 se llamaba "Prune" y se instalaba en Program Files\Prune: su historial
     // (solo escribible por admins, igual que este) se trae a la carpeta nueva.
@@ -82,16 +104,28 @@ pub fn journal_dir(user_dir: &Path) -> PathBuf {
             }
         }
     }
-    let old = user_dir.join("journal.json");
-    if !new.exists() && old.exists() && std::fs::copy(&old, &new).is_ok() {
-        let _ = std::fs::rename(&old, user_dir.join("journal.migrado.json"));
-    }
-    dir
+    Ok(dir)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Como administrador nunca se usa la carpeta del usuario, ni siquiera si no hay otra.
+    #[test]
+    fn el_historial_de_admin_nunca_va_en_la_carpeta_del_usuario() {
+        let pf = PathBuf::from(r"C:\Program Files");
+        let user = PathBuf::from(r"C:\Users\x\AppData\Roaming\com.debloater.app");
+        let app = PathBuf::from(r"C:\Program Files\P-Rune\data");
+        // Con la app de escritorio (o Core) instalada: su carpeta.
+        assert_eq!(journal_dir_for(true, Some(app.clone()), Some(pf.clone()), Some(user.clone())), Some(app.clone()));
+        // Sin nada instalado: la propia de Core, también en Program Files.
+        assert_eq!(journal_dir_for(true, None, Some(pf.clone()), Some(user.clone())), Some(pf.join("P-Rune Core").join("data")));
+        // Si no se puede saber dónde está Program Files, no hay carpeta: no se cae en la del usuario.
+        assert_eq!(journal_dir_for(true, None, None, Some(user.clone())), None);
+        // Sin administrador, siempre la del usuario, aunque haya una protegida.
+        assert_eq!(journal_dir_for(false, Some(app), Some(pf), Some(user.clone())), Some(user));
+    }
 
     #[test]
     fn carpeta_de_datos_del_usuario() {

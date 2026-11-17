@@ -176,7 +176,6 @@
   "No queda ninguna app del catálogo instalada.": "Es ist keine App aus dem Katalog mehr installiert.",
   "No se borró nada.": "Es wurde nichts gelöscht.",
   "No se cambió nada.": "Es wurde nichts geändert.",
-  "No se encontró la carpeta %APPDATA%.": "Der Ordner %APPDATA% wurde nicht gefunden.",
   "No se encontró la conexión que sale a internet. Elegí una con --adapter: {names}": "Die Verbindung, die ins Internet geht, wurde nicht gefunden. Wähle eine mit --adapter: {names}",
   "No se escribió nada.": "Es wurde nichts geschrieben.",
   "No se pudieron aplicar {n} cambios.": "{n} Änderungen konnten nicht angewendet werden.",
@@ -193,7 +192,6 @@
   "Opciones": "Optionen",
   "Opciones:": "Optionen:",
   "Opción desconocida": "Unbekannte Option",
-  "P-Rune está instalado para todo el equipo y guarda el historial donde solo escriben los administradores. Repetí el comando en una terminal de administrador (o con `sudo`).": "P-Rune ist für den ganzen PC installiert und speichert den Verlauf dort, wo nur Administratoren schreiben dürfen. Wiederhole den Befehl in einem Administrator-Terminal (oder mit `sudo`).",
   "P-Rune Core: debloater y ajustes para Windows 11, desde la consola.\nSin comando abre la interfaz interactiva.": "P-Rune Core: Debloater und Optimierungen für Windows 11, im Terminal.\nOhne Befehl öffnet sich die interaktive Oberfläche.",
   "PATH de tu usuario:": "Benutzer-PATH:",
   "PATH del equipo:": "System-PATH:",
@@ -259,7 +257,6 @@
   "Sin administrador: se puede mirar todo; los ajustes marcados `admin` piden una terminal de administrador.": "Ohne Administratorrechte: Du kannst alles ansehen; mit `admin` markierte Optimierungen brauchen ein Administrator-Terminal.",
   "Sin confirmación: se volvió al DNS anterior.": "Keine Bestätigung: Der vorherige DNS wurde wiederhergestellt.",
   "Solo esta categoría (id o parte del nombre)": "Nur diese Kategorie (ID oder Teil des Namens)",
-  "Solo lectura: P-Rune está instalado para todo el equipo. Abrí una terminal de administrador para cambiar algo.": "Nur Lesen: P-Rune ist für den ganzen PC installiert. Öffne ein Administrator-Terminal, um etwas zu ändern.",
   "Solo los instalados": "Nur die installierten",
   "Solo los que están aplicados": "Nur die angewendeten",
   "Solo los que tienen actualización": "Nur die mit Update",
@@ -290,7 +287,6 @@
   "Vuelve a arrancar con Windows": "Startet wieder mit Windows",
   "Vuelve ajustes a como los trae Windows": "Setzt Optimierungen auf den Windows-Standard zurück",
   "Vuelve al DNS automático (el que da el router)": "Stellt wieder den automatischen DNS ein (den vom Router)",
-  "Vuelve cada valor a como estaba antes.": "Stellt jeden Wert so wieder her, wie er vorher war.",
   "Windows Update: pausar y horas activas": "Windows Update: pausieren und Nutzungszeit",
   "Windows lo vuelve a armar, pero los próximos arranques y aperturas de apps son más lentos. No suele convenir.": "Windows baut es neu auf, aber die nächsten Starts von Windows und Apps sind langsamer. Lohnt sich meist nicht.",
   "Windows protege este valor (UCPD): puede que no deje cambiarlo.": "Windows schützt diesen Wert (UCPD): Er lässt sich vielleicht nicht ändern.",
@@ -408,5 +404,8 @@
   "¿Quitar {n} apps? No se puede deshacer desde P-Rune: se reinstalan desde Microsoft Store.": "{n} Apps entfernen? Das lässt sich in P-Rune nicht rückgängig machen: Sie werden über den Microsoft Store neu installiert.",
   "Último:": "Letzter:",
   "● aplicado  ○ como lo trae Windows  ◐ a medias  – no disponible": "● angewendet  ○ Windows-Standard  ◐ teilweise  – nicht verfügbar",
-  "no": "nein"
+  "no": "nein",
+  "Trabajando…": "Wird ausgeführt…",
+  "Deshacer esta entrada va a escribir:": "Das Rückgängigmachen dieses Eintrags schreibt:",
+  "Hay además un historial de administrador con {n} entradas: abrí una terminal de administrador para verlo.": "Es gibt außerdem einen Administrator-Verlauf mit {n} Einträgen: Öffne ein Administrator-Terminal, um ihn zu sehen."
 }

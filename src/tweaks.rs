@@ -146,7 +146,6 @@ struct Status<'a> {
     version: &'static str,
     system: &'a prune_engine::system::SystemInfo,
     journal: String,
-    journal_writable: bool,
     tweaks_applied: usize,
     tweaks_available: usize,
     history_entries: usize,
@@ -165,7 +164,6 @@ pub fn status(ctx: &Ctx) -> Result<(), String> {
             version: env!("CARGO_PKG_VERSION"),
             system: &ctx.info,
             journal: ctx.journal_dir.join("journal.json").display().to_string(),
-            journal_writable: ctx.writable,
             tweaks_applied: applied,
             tweaks_available: available.len(),
             history_entries: entries,
@@ -201,6 +199,10 @@ pub fn status(ctx: &Ctx) -> Result<(), String> {
     }
     anstream::println!();
     anstream::println!("{} {entries}", tr("Entradas en el historial:"));
+    // Si el historial no se pudo leer, se dice: "0 entradas" a secas sería mentira.
+    if let Some(w) = ctx.engine.take_warning() {
+        anstream::println!("{} {w}", ui::yellow("●"));
+    }
     if !drifted.is_empty() {
         anstream::println!(
             "{} {} {} {}",
@@ -379,7 +381,7 @@ pub fn run_plan(ctx: &Ctx, views: &[TweakView], desired: Vec<Desired>, dry_run: 
             tr("Abrí una como administrador o repetí el comando con `sudo`.")
         ))
     } else {
-        ctx.need_write().err()
+        None
     };
     let restart = desired.iter().filter_map(|d| view(&d.id)).map(|v| v.restart).max().unwrap_or_default();
 

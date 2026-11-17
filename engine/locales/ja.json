@@ -43,6 +43,7 @@
     "journal_unreadable": "履歴を読み取れず（{error}）、バックアップもできませんでした（{backup_error}）。",
     "journal_save_failed": "履歴を保存できませんでした：{error}",
     "journal_busy": "別の P-Rune ウィンドウが履歴を使用中です。数秒後にもう一度お試しください。",
+    "journal_read_failed": "履歴を読み込めませんでした：{error}",
     "entry_missing": "履歴の項目が見つかりません",
     "entry_undone": "すでに元に戻しています",
     "apps_not_restorable": "削除したアプリはここからは復元できません：Microsoft Store から再インストールしてください。",
