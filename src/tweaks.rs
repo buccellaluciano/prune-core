@@ -73,6 +73,7 @@ fn contains(haystack: &str, needle: &str) -> bool {
 
 /// Un ajuste por su id, o por una parte del id si no hay dudas de cuál es.
 pub fn resolve<'a>(views: &'a [TweakView], query: &str) -> Result<&'a TweakView, String> {
+    ui::need_text(query)?;
     if let Some(v) = views.iter().find(|v| v.id.eq_ignore_ascii_case(query)) {
         return Ok(v);
     }
@@ -172,39 +173,39 @@ pub fn status(ctx: &Ctx) -> Result<(), String> {
     }
 
     let i = &ctx.info;
-    anstream::println!("{} {}", ui::bold("P-Rune Core"), env!("CARGO_PKG_VERSION"));
-    anstream::println!("{} {} ({}.{})", i.product, i.display_version, i.build, i.ubr);
+    say!("{} {}", ui::bold("P-Rune Core"), env!("CARGO_PKG_VERSION"));
+    say!("{} {} ({}.{})", i.product, i.display_version, i.build, i.ubr);
     if i.elevated {
-        anstream::println!("{} {}", ui::green("●"), tr("Terminal de administrador: se puede aplicar todo."));
+        say!("{} {}", ui::green("●"), tr("Terminal de administrador: se puede aplicar todo."));
     } else {
-        anstream::println!(
+        say!(
             "{} {}",
             ui::yellow("●"),
             tr("Sin administrador: se puede mirar todo; los ajustes marcados `admin` piden una terminal de administrador.")
         );
     }
     if let Some(user) = &i.foreign_user {
-        anstream::println!("{} {}", ui::yellow("●"), tf!("Esta terminal corre con otra cuenta que la de la sesión de {user}.", user = user));
+        say!("{} {}", ui::yellow("●"), tf!("Esta terminal corre con otra cuenta que la de la sesión de {user}.", user = user));
     }
-    anstream::println!();
-    anstream::println!("{}", tf!("Ajustes aplicados: {n} de {total}", n = applied, total = available.len()));
+    say!();
+    say!("{}", tf!("Ajustes aplicados: {n} de {total}", n = applied, total = available.len()));
     for c in &catalog::tweaks().category {
         let in_cat: Vec<&&TweakView> = available.iter().filter(|v| v.category == c.id).collect();
         let on = in_cat.iter().filter(|v| v.state == TweakState::Applied).count();
         if !in_cat.is_empty() {
             let count = format!("{on}/{}", in_cat.len());
             let count = if on > 0 { ui::green(&ui::pad(&count, 6)) } else { ui::dim(&ui::pad(&count, 6)) };
-            anstream::println!("  {count} {}", i18n::category(&c.id, &c.title));
+            say!("  {count} {}", i18n::category(&c.id, &c.title));
         }
     }
-    anstream::println!();
-    anstream::println!("{} {entries}", tr("Entradas en el historial:"));
+    say!();
+    say!("{} {entries}", tr("Entradas en el historial:"));
     // Si el historial no se pudo leer, se dice: "0 entradas" a secas sería mentira.
     if let Some(w) = ctx.engine.take_warning() {
-        anstream::println!("{} {w}", ui::yellow("●"));
+        say!("{} {w}", ui::yellow("●"));
     }
     if !drifted.is_empty() {
-        anstream::println!(
+        say!(
             "{} {} {} {}",
             ui::yellow("●"),
             drifted.len(),
@@ -235,7 +236,7 @@ pub fn list(ctx: &Ctx, search: Option<&str>, category: Option<&str>, only_applie
         return ui::json(&shown);
     }
     if shown.is_empty() {
-        anstream::println!("{}", tr("Ningún ajuste coincide."));
+        say!("{}", tr("Ningún ajuste coincide."));
         return Ok(());
     }
     let width = shown.iter().map(|v| v.id.len()).max().unwrap_or(0);
@@ -251,16 +252,16 @@ pub fn list(ctx: &Ctx, search: Option<&str>, category: Option<&str>, only_applie
         if rows.is_empty() {
             continue;
         }
-        anstream::println!("\n{}", ui::bold(&category_title(&cat)));
+        say!("\n{}", ui::bold(&category_title(&cat)));
         for v in rows {
             // Con opciones, lo que importa es cuál está puesta.
             let current = v.choice.as_ref().and_then(|id| v.choices.iter().find(|c| &c.id == id)).map(|c| format!(" = {}", c.label));
             let title = format!("{}{}", v.title, current.unwrap_or_default());
             let title = if v.state == TweakState::Unsupported { ui::dim(&title) } else { title };
-            anstream::println!("  {} {}  {title}  {}", state_mark(v.state), ui::cyan(&ui::pad(&v.id, width)), badges(v));
+            say!("  {} {}  {title}  {}", state_mark(v.state), ui::cyan(&ui::pad(&v.id, width)), badges(v));
         }
     }
-    anstream::println!(
+    say!(
         "\n{} {} {}  {} {}  {} {}  {} {}",
         ui::dim(tr("Referencias:")),
         ui::green("●"),
@@ -281,38 +282,39 @@ pub fn show(ctx: &Ctx, id: &str) -> Result<(), String> {
     if ctx.json {
         return ui::json(v);
     }
-    anstream::println!("{}  {}", ui::bold(&v.title), ui::cyan(&v.id));
-    anstream::println!("{}", v.description);
-    anstream::println!();
-    anstream::println!("{} {} {}", tr("Estado:"), state_mark(v.state), state_text(v.state));
-    anstream::println!("{} {}", tr("Riesgo:"), risk_text(v.risk));
+    say!("{}  {}", ui::bold(&v.title), ui::cyan(&v.id));
+    say!("{}", v.description);
+    say!();
+    say!("{} {} {}", tr("Estado:"), state_mark(v.state), state_text(v.state));
+    say!("{} {}", tr("Riesgo:"), risk_text(v.risk));
     if v.requires_admin {
-        anstream::println!("{}", tr("Requiere una terminal de administrador."));
+        say!("{}", tr("Requiere una terminal de administrador."));
     }
     if v.ucpd {
-        anstream::println!("{}", tr("Windows protege este valor (UCPD): puede que no deje cambiarlo."));
+        say!("{}", tr("Windows protege este valor (UCPD): puede que no deje cambiarlo."));
     }
     if let Some(r) = restart_text(v.restart) {
-        anstream::println!("{}", tf!("Para que se vea hace falta: {r}.", r = r));
+        say!("{}", tf!("Para que se vea hace falta: {r}.", r = r));
     }
     if !v.choices.is_empty() {
-        anstream::println!("\n{}", tr("Opciones:"));
+        say!("\n{}", tr("Opciones:"));
         for c in &v.choices {
             let mark = if v.choice.as_deref() == Some(c.id.as_str()) { ui::green("●") } else { ui::dim("○") };
             let default = if c.default { ui::dim(tr(" (la de Windows)")) } else { String::new() };
-            anstream::println!("  {mark} {}  {}{default}", ui::cyan(&format!("{}={}", v.id, c.id)), c.label);
+            say!("  {mark} {}  {}{default}", ui::cyan(&format!("{}={}", v.id, c.id)), c.label);
         }
     }
-    anstream::println!("\n{}", tr("Qué toca:"));
+    say!("\n{}", tr("Qué toca:"));
     for op in &v.ops {
-        anstream::println!("  {}\\{}", op.key, ui::bold(&op.name));
+        say!("  {}\\{}", op.key, ui::bold(&op.name));
         // Las etiquetas se alinean según el idioma, no con espacios escritos a mano.
         let labels = [tr("ahora:"), tr("aplicado:"), tr("revertido:")];
         let width = labels.iter().map(|l| ui::width(l)).max().unwrap_or(0);
-        anstream::println!("    {} {}", ui::dim(&ui::pad(labels[0], width)), op.current);
-        anstream::println!("    {} {}", ui::dim(&ui::pad(labels[1], width)), op.on);
+        // Lo que hay ahora en el registro lo puede haber escrito cualquier programa.
+        say!("    {} {}", ui::dim(&ui::pad(labels[0], width)), ui::clean(&op.current));
+        say!("    {} {}", ui::dim(&ui::pad(labels[1], width)), op.on);
         if !op.off.is_empty() {
-            anstream::println!("    {} {}", ui::dim(&ui::pad(labels[2], width)), op.off);
+            say!("    {} {}", ui::dim(&ui::pad(labels[2], width)), op.off);
         }
     }
     Ok(())
@@ -321,7 +323,7 @@ pub fn show(ctx: &Ctx, id: &str) -> Result<(), String> {
 // ───────────────────────── apply / revert ─────────────────────────
 
 #[derive(Serialize)]
-struct Outcome {
+pub(crate) struct Outcome {
     plan: Vec<PlannedChange>,
     /// None en `--dry-run` o si no había nada que cambiar.
     report: Option<engine::ApplyReport>,
@@ -341,6 +343,17 @@ pub fn apply(ctx: &Ctx, args: &[String], on: bool, dry_run: bool) -> Result<(), 
 
 /// Muestra el plan, confirma y aplica. Lo usan `apply`, `revert` y `profile import`.
 pub fn run_plan(ctx: &Ctx, views: &[TweakView], desired: Vec<Desired>, dry_run: bool) -> Result<(), String> {
+    let (outcome, failure) = plan_and_apply(ctx, views, desired, dry_run)?;
+    if ctx.json {
+        ui::json(&outcome)?;
+    }
+    failure.map_or(Ok(()), Err)
+}
+
+/// Lo mismo, sin imprimir el JSON: devuelve el resultado y, si algún cambio falló, el error
+/// con el que tiene que terminar el comando. Así quien arma una salida más grande (importar
+/// un perfil) lo mete en su único documento.
+pub(crate) fn plan_and_apply(ctx: &Ctx, views: &[TweakView], desired: Vec<Desired>, dry_run: bool) -> Result<(Outcome, Option<String>), String> {
     let plan = engine::plan(&desired, ctx.info.build)?;
     let changing = |id: &str| plan.iter().any(|p| p.tweak_id == id && !p.noop);
     // Lo que ya está como se pidió no se toca (ni ensucia el historial).
@@ -353,22 +366,21 @@ pub fn run_plan(ctx: &Ctx, views: &[TweakView], desired: Vec<Desired>, dry_run: 
             if !seen.contains(&p.tweak_id.as_str()) {
                 seen.push(&p.tweak_id);
                 let title = view(&p.tweak_id).map_or(p.tweak_id.as_str(), |v| v.title.as_str());
-                anstream::println!("{}  {}", ui::bold(title), ui::cyan(&p.tweak_id));
+                say!("{}  {}", ui::bold(title), ui::cyan(&p.tweak_id));
             }
             if p.noop {
-                anstream::println!("  {}", ui::dim(&format!("{}\\{}: {} ({})", p.key, p.name, p.from, tr("ya está así"))));
+                say!("  {}", ui::dim(&format!("{}\\{}: {} ({})", p.key, p.name, ui::clean(&p.from), tr("ya está así"))));
             } else {
-                anstream::println!("  {}\\{}: {} {} {}", p.key, p.name, ui::dim(&p.from), ui::dim("→"), ui::green(&p.to));
+                say!("  {}\\{}: {} {} {}", p.key, p.name, ui::dim(&ui::clean(&p.from)), ui::dim("→"), ui::green(&ui::clean(&p.to)));
             }
         }
     }
 
     if desired.is_empty() {
-        if ctx.json {
-            return ui::json(&Outcome { plan, report: None });
+        if !ctx.json {
+            say!("\n{}", tr("Ya está todo así: no hay nada que cambiar."));
         }
-        anstream::println!("\n{}", tr("Ya está todo así: no hay nada que cambiar."));
-        return Ok(());
+        return Ok((Outcome { plan, report: None }, None));
     }
 
     let need_admin: Vec<&str> =
@@ -387,57 +399,53 @@ pub fn run_plan(ctx: &Ctx, views: &[TweakView], desired: Vec<Desired>, dry_run: 
 
     if dry_run {
         if ctx.json {
-            return ui::json(&Outcome { plan, report: None });
+            return Ok((Outcome { plan, report: None }, None));
         }
-        anstream::println!();
+        say!();
         if let Some(why) = &blocked {
-            anstream::println!("{} {why}", ui::yellow("●"));
+            say!("{} {why}", ui::yellow("●"));
         }
         if let Some(r) = restart_text(restart) {
-            anstream::println!("{}", tf!("Para que se vea hace falta: {r}.", r = r));
+            say!("{}", tf!("Para que se vea hace falta: {r}.", r = r));
         }
-        anstream::println!("{}", ui::dim(tr("Vista previa: no se cambió nada.")));
-        return Ok(());
+        say!("{}", ui::dim(tr("Vista previa: no se cambió nada.")));
+        return Ok((Outcome { plan, report: None }, None));
     }
     if let Some(why) = blocked {
         return Err(why);
     }
     ctx.need_yes_in_json()?;
     if !ctx.json {
-        anstream::println!();
+        say!();
     }
     let question = tf!("¿Aplicar {n} ajustes?", n = desired.len());
     if !ui::confirm(&question, ctx.yes)? {
-        anstream::println!("{}", tr("No se cambió nada."));
-        return Ok(());
+        say!("{}", tr("No se cambió nada."));
+        return Ok((Outcome { plan, report: None }, None));
     }
 
     let report = ctx.engine.apply(&desired, ctx.info.elevated, ctx.info.build, ctx.info.foreign_user.as_deref());
     let failed = report.results.iter().filter(|r| !r.ok).count();
-    if ctx.json {
-        ui::json(&Outcome { plan, report: Some(report) })?;
-    } else {
+    if !ctx.json {
         for r in &report.results {
             let title = view(&r.id).map_or(r.id.as_str(), |v| v.title.as_str());
             match &r.error {
-                None => anstream::println!("{} {title}", ui::green("✓")),
-                Some(e) => anstream::println!("{} {title}: {e}", ui::red("✗")),
+                None => say!("{} {title}", ui::green("✓")),
+                Some(e) => say!("{} {title}: {e}", ui::red("✗")),
             }
         }
         if let Some(w) = &report.warning {
-            anstream::println!("{} {w}", ui::yellow("●"));
+            say!("{} {w}", ui::yellow("●"));
         }
         if let Some(r) = restart_text(report.restart) {
-            anstream::println!("{}", tf!("Para que se vea hace falta: {r}.", r = r));
+            say!("{}", tf!("Para que se vea hace falta: {r}.", r = r));
         }
         if report.entry_id.is_some() {
-            anstream::println!("{} {}", ui::dim(tr("Para deshacerlo:")), ui::cyan("prune undo"));
+            say!("{} {}", ui::dim(tr("Para deshacerlo:")), ui::cyan("prune undo"));
         }
     }
-    if failed > 0 {
-        return Err(tf!("No se pudieron aplicar {n} cambios.", n = failed));
-    }
-    Ok(())
+    let failure = (failed > 0).then(|| tf!("No se pudieron aplicar {n} cambios.", n = failed));
+    Ok((Outcome { plan, report: Some(report) }, failure))
 }
 
 #[cfg(test)]
@@ -480,6 +488,9 @@ mod tests {
         let e = resolve(&v, "taskbar").unwrap_err();
         assert!(e.contains("taskbar.align_left") && e.contains("taskbar.end_task") && e.contains("search.taskbar_mode"));
         assert!(resolve(&v, "no-existe").is_err());
+        // Vacío no es "cualquiera", ni siquiera si hay un solo ajuste.
+        assert!(resolve(&v[..1], "").is_err());
+        assert!(desired_for(&v[..1], "=x", true).is_err());
     }
 
     #[test]

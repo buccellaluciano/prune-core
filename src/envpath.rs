@@ -143,15 +143,15 @@ fn report(json: bool, s: &Status, headline: String) -> Result<(), String> {
         return ui::json(s);
     }
     let yes_no = |b: bool| if b { ui::green(tr("sí")) } else { ui::dim(tr("no")) };
-    anstream::println!("{headline}");
+    say!("{headline}");
     // Las etiquetas se alinean según el idioma, no con espacios escritos a mano.
     let labels = [tr("carpeta:"), tr("PATH del equipo:"), tr("PATH de tu usuario:")];
     let width = labels.iter().map(|l| ui::width(l)).max().unwrap_or(0);
-    anstream::println!("  {}  {}", ui::dim(&ui::pad(labels[0], width)), s.dir);
-    anstream::println!("  {}  {}", ui::dim(&ui::pad(labels[1], width)), yes_no(s.machine));
-    anstream::println!("  {}  {}", ui::dim(&ui::pad(labels[2], width)), yes_no(s.user));
+    say!("  {}  {}", ui::dim(&ui::pad(labels[0], width)), s.dir);
+    say!("  {}  {}", ui::dim(&ui::pad(labels[1], width)), yes_no(s.machine));
+    say!("  {}  {}", ui::dim(&ui::pad(labels[2], width)), yes_no(s.user));
     if (s.machine || s.user) && !s.session {
-        anstream::println!("{}", ui::dim(tr("Esta terminal se abrió antes del cambio: abrí una nueva para escribir `prune` a secas.")));
+        say!("{}", ui::dim(tr("Esta terminal se abrió antes del cambio: abrí una nueva para escribir `prune` a secas.")));
     }
     Ok(())
 }

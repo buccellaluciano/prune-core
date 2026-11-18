@@ -19,7 +19,7 @@ pub fn list(ctx: &Ctx) -> Result<(), String> {
         return ui::json(&apps);
     }
     if apps.is_empty() {
-        anstream::println!("{} {}", ui::green("✓"), tr("No queda ninguna app del catálogo instalada."));
+        say!("{} {}", ui::green("✓"), tr("No queda ninguna app del catálogo instalada."));
         return Ok(());
     }
     let width = apps.iter().map(|a| a.id.len()).max().unwrap_or(0);
@@ -28,18 +28,19 @@ pub fn list(ctx: &Ctx) -> Result<(), String> {
         if rows.is_empty() {
             continue;
         }
-        anstream::println!("\n{}", ui::bold(tier_title(tier)));
+        say!("\n{}", ui::bold(tier_title(tier)));
         for a in rows {
             let note = a.note.as_ref().map(|n| ui::dim(&format!("  {n}"))).unwrap_or_default();
-            anstream::println!("  {}  {}{note}", ui::cyan(&ui::pad(&a.id, width)), a.title);
+            say!("  {}  {}{note}", ui::cyan(&ui::pad(&a.id, width)), a.title);
         }
     }
-    anstream::println!("\n{} {}", ui::dim(tr("Para quitar:")), ui::cyan("prune bloat remove <app> [<app>…]"));
+    say!("\n{} {}", ui::dim(tr("Para quitar:")), ui::cyan("prune bloat remove <app> [<app>…]"));
     Ok(())
 }
 
 /// Una app instalada por su id, o por una parte del id o del nombre si no hay dudas.
 fn resolve<'a>(apps: &'a [BloatView], query: &str) -> Result<&'a BloatView, String> {
+    ui::need_text(query)?;
     if let Some(a) = apps.iter().find(|a| a.id.eq_ignore_ascii_case(query)) {
         return Ok(a);
     }
@@ -73,8 +74,18 @@ pub fn remove(ctx: &Ctx, queries: &[String], deprovision: bool) -> Result<(), St
 
 /// Confirma y quita. Lo usan `bloat remove` y `profile import --bloat`.
 pub fn remove_apps(ctx: &Ctx, picked: &[&BloatView], deprovision: bool) -> Result<(), String> {
+    let (results, failure) = remove_confirmed(ctx, picked, deprovision)?;
+    if ctx.json {
+        ui::json(&results)?;
+    }
+    failure.map_or(Ok(()), Err)
+}
+
+/// Lo mismo, sin imprimir el JSON: devuelve el resultado por app y, si alguna falló, el error
+/// con el que tiene que terminar el comando.
+pub(crate) fn remove_confirmed(ctx: &Ctx, picked: &[&BloatView], deprovision: bool) -> Result<(Vec<RemoveResult>, Option<String>), String> {
     if picked.is_empty() {
-        return Ok(());
+        return Ok((Vec::new(), None));
     }
     // Con otra cuenta de administrador se quitarían las apps de esa cuenta, no las de la persona.
     if let Some(user) = &ctx.info.foreign_user {
@@ -88,13 +99,13 @@ pub fn remove_apps(ctx: &Ctx, picked: &[&BloatView], deprovision: bool) -> Resul
                 Risk::Moderate => format!("  {}", ui::yellow(tr("moderada"))),
                 Risk::Advanced => format!("  {}", ui::red(tr("avanzada"))),
             };
-            anstream::println!("  {}  {}{tier}", ui::cyan(&a.id), a.title);
+            say!("  {}  {}{tier}", ui::cyan(&a.id), a.title);
             if let Some(n) = &a.note {
-                anstream::println!("    {}", ui::dim(n));
+                say!("    {}", ui::dim(n));
             }
         }
         if deprovision && !ctx.info.elevated {
-            anstream::println!(
+            say!(
                 "{} {}",
                 ui::yellow("●"),
                 tr("--deprovision pide una terminal de administrador: se quitan solo de tu cuenta.")
@@ -103,30 +114,26 @@ pub fn remove_apps(ctx: &Ctx, picked: &[&BloatView], deprovision: bool) -> Resul
     }
     let question = tf!("¿Quitar {n} apps? No se puede deshacer desde P-Rune: se reinstalan desde Microsoft Store.", n = picked.len());
     if !ui::confirm(&question, ctx.yes)? {
-        anstream::println!("{}", tr("No se quitó nada."));
-        return Ok(());
+        say!("{}", tr("No se quitó nada."));
+        return Ok((Vec::new(), None));
     }
     let ids: Vec<String> = picked.iter().map(|a| a.id.clone()).collect();
     let (results, journal) = remove_now(ctx, &ids, deprovision)?;
     let failed = results.iter().filter(|r| !r.ok).count();
-    if ctx.json {
-        ui::json(&results)?;
-    } else {
+    if !ctx.json {
         for r in &results {
             let title = picked.iter().find(|a| a.id == r.id).map_or(r.id.as_str(), |a| a.title.as_str());
             match &r.error {
-                None => anstream::println!("{} {title}", ui::green("✓")),
-                Some(e) => anstream::println!("{} {title}: {e}", ui::red("✗")),
+                None => say!("{} {title}", ui::green("✓")),
+                Some(e) => say!("{} {title}: {e}", ui::red("✗")),
             }
         }
     }
     if let Some(warning) = journal {
-        anstream::eprintln!("{} {warning}", ui::yellow("●"));
+        note!("{} {warning}", ui::yellow("●"));
     }
-    if failed > 0 {
-        return Err(tf!("No se pudieron quitar {n} apps.", n = failed));
-    }
-    Ok(())
+    let failure = (failed > 0).then(|| tf!("No se pudieron quitar {n} apps.", n = failed));
+    Ok((results, failure))
 }
 
 /// Quita ya, sin preguntar ni imprimir (eso es de quien llama: el subcomando o la interfaz
@@ -159,5 +166,6 @@ mod tests {
         assert_eq!(resolve(&apps, "clip").unwrap().id, "Clipchamp.Clipchamp");
         assert!(resolve(&apps, "bing").unwrap_err().contains("Microsoft.BingWeather"));
         assert!(resolve(&apps, "spotify").is_err());
+        assert!(resolve(&apps[..1], "").is_err());
     }
 }

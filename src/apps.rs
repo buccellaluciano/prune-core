@@ -51,7 +51,7 @@ pub enum AppsCmd {
 /// Estado de winget, o el motivo por el que no se puede usar.
 fn overview(ctx: &Ctx) -> Result<AppsOverview, String> {
     if !ctx.json {
-        anstream::eprintln!("{}", ui::dim(tr("Consultando winget…")));
+        note!("{}", ui::dim(tr("Consultando winget…")));
     }
     let o = winget::status();
     if o.winget.is_none() {
@@ -62,6 +62,7 @@ fn overview(ctx: &Ctx) -> Result<AppsOverview, String> {
 
 /// Un programa por su id, o por una parte del id o del nombre si no hay dudas.
 fn resolve<'a>(apps: &'a [AppStatus], query: &str) -> Result<&'a AppStatus, String> {
+    ui::need_text(query)?;
     if let Some(a) = apps.iter().find(|a| a.id.eq_ignore_ascii_case(query) || a.title.eq_ignore_ascii_case(query)) {
         return Ok(a);
     }
@@ -111,7 +112,7 @@ fn list(ctx: &Ctx, search: Option<&str>, installed: bool, updates: bool) -> Resu
         return ui::json(&shown);
     }
     if shown.is_empty() {
-        anstream::println!("{}", tr("Ningún programa coincide."));
+        say!("{}", tr("Ningún programa coincide."));
         return Ok(());
     }
     let width = shown.iter().map(|a| a.id.len()).max().unwrap_or(0);
@@ -120,17 +121,17 @@ fn list(ctx: &Ctx, search: Option<&str>, installed: bool, updates: bool) -> Resu
         if rows.is_empty() {
             continue;
         }
-        anstream::println!("\n{}", ui::bold(&i18n::app_group(&g.id, &g.title)));
+        say!("\n{}", ui::bold(&i18n::app_group(&g.id, &g.title)));
         for a in rows {
             let (mark, version) = match (&a.installed, &a.available) {
-                (Some(v), Some(new)) => (ui::yellow("↑"), ui::yellow(&format!("  {v} → {new}"))),
-                (Some(v), None) => (ui::green("●"), ui::dim(&format!("  {v}"))),
+                (Some(v), Some(new)) => (ui::yellow("↑"), ui::yellow(&format!("  {} → {}", ui::clean(v), ui::clean(new)))),
+                (Some(v), None) => (ui::green("●"), ui::dim(&format!("  {}", ui::clean(v)))),
                 (None, _) => (ui::dim("○"), String::new()),
             };
-            anstream::println!("  {mark} {}  {}{version}", ui::cyan(&ui::pad(&a.id, width)), a.title);
+            say!("  {mark} {}  {}{version}", ui::cyan(&ui::pad(&a.id, width)), a.title);
         }
     }
-    anstream::println!("\n{} {} {}  {} {}  {} {}", ui::dim(tr("Referencias:")), ui::green("●"), ui::dim(tr("instalado")), ui::yellow("↑"), ui::dim(tr("hay actualización")), ui::dim("○"), ui::dim(tr("sin instalar")));
+    say!("\n{} {} {}  {} {}  {} {}", ui::dim(tr("Referencias:")), ui::green("●"), ui::dim(tr("instalado")), ui::yellow("↑"), ui::dim(tr("hay actualización")), ui::dim("○"), ui::dim(tr("sin instalar")));
     Ok(())
 }
 
@@ -154,13 +155,17 @@ fn act(ctx: &Ctx, queries: &[String], all: bool, action: Action) -> Result<(), S
         }
     }
     if picked.is_empty() {
-        anstream::println!("{}", tr("No hay nada para actualizar."));
+        // En JSON, "nada" también es JSON: una lista vacía de resultados.
+        if ctx.json {
+            return ui::json(&Vec::<winget::ActionResult>::new());
+        }
+        say!("{}", tr("No hay nada para actualizar."));
         return Ok(());
     }
     ctx.need_yes_in_json()?;
     if !ctx.json {
         for a in &picked {
-            anstream::println!("  {}  {}", ui::cyan(&a.id), a.title);
+            say!("  {}  {}", ui::cyan(&a.id), a.title);
         }
     }
     let question = match action {
@@ -169,7 +174,7 @@ fn act(ctx: &Ctx, queries: &[String], all: bool, action: Action) -> Result<(), S
         Action::Uninstall => tf!("¿Desinstalar {n} programas?", n = picked.len()),
     };
     if !ui::confirm(&question, ctx.yes)? {
-        anstream::println!("{}", tr("No se cambió nada."));
+        say!("{}", tr("No se cambió nada."));
         return Ok(());
     }
 
@@ -185,7 +190,8 @@ fn act(ctx: &Ctx, queries: &[String], all: bool, action: Action) -> Result<(), S
                 None => phase_text(phase).to_string(),
             };
             if live && text != last {
-                anstream::eprint!("\r  {}  {}", a.title, ui::dim(&ui::pad(&text, 24)));
+                // El retorno de carro es nuestro (pisa el renglón): va por fuera de `render`.
+                anstream::eprint!("\r{}", ui::render(&format!("  {}  {}", a.title, ui::dim(&ui::pad(&text, 24)))));
                 let _ = std::io::stderr().flush();
                 last = text;
             }
@@ -195,8 +201,8 @@ fn act(ctx: &Ctx, queries: &[String], all: bool, action: Action) -> Result<(), S
         }
         if !ctx.json {
             match (&r.ok, &r.message) {
-                (true, _) => anstream::println!("{} {}", ui::green("✓"), a.title),
-                (false, m) => anstream::println!("{} {}: {}", ui::red("✗"), a.title, m.as_deref().unwrap_or_default()),
+                (true, _) => say!("{} {}", ui::green("✓"), a.title),
+                (false, m) => say!("{} {}: {}", ui::red("✗"), a.title, ui::clean(m.as_deref().unwrap_or_default())),
             }
         }
         results.push(r);
@@ -218,20 +224,20 @@ fn check(ctx: &Ctx, query: &str) -> Result<(), String> {
     if ctx.json {
         return ui::json(&info);
     }
-    anstream::println!("{}  {}", ui::bold(&a.title), ui::cyan(&a.id));
+    say!("{}  {}", ui::bold(&a.title), ui::cyan(&a.id));
     if let Some(v) = &info.version {
-        anstream::println!("{}  {v}", ui::pad(tr("Versión:"), 12));
+        say!("{}  {v}", ui::pad(tr("Versión:"), 12));
     }
     if let Some(u) = &info.url {
-        anstream::println!("{}  {u}", ui::pad(tr("Instalador:"), 12));
+        say!("{}  {u}", ui::pad(tr("Instalador:"), 12));
     }
     if let Some(h) = &info.sha256 {
-        anstream::println!("{}  {h}", ui::pad("SHA-256:", 12));
+        say!("{}  {h}", ui::pad("SHA-256:", 12));
         if let Ok(url) = vt::report_url(h) {
-            anstream::println!("{}  {url}", ui::pad("VirusTotal:", 12));
+            say!("{}  {url}", ui::pad("VirusTotal:", 12));
         }
     }
-    anstream::println!("{}", ui::dim(tr("winget comprueba ese SHA-256 al instalar: si el archivo no coincide, no lo instala.")));
+    say!("{}", ui::dim(tr("winget comprueba ese SHA-256 al instalar: si el archivo no coincide, no lo instala.")));
     Ok(())
 }
 

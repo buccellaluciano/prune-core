@@ -36,8 +36,8 @@ deja en el PATH del equipo: abrís una terminal nueva y escribís `prune`. No ti
 doble clic, Windows pide permiso de administrador y listo.
 
 ```powershell
-msiexec /i P-Rune-Core_0.1.1_x64.msi /qn              # sin ventanas, para desplegarlo
-msiexec /i P-Rune-Core_0.1.1_x64.msi ADDTOPATH=0      # sin tocar el PATH
+msiexec /i P-Rune-Core_0.1.2_x64.msi /qn              # sin ventanas, para desplegarlo
+msiexec /i P-Rune-Core_0.1.2_x64.msi ADDTOPATH=0      # sin tocar el PATH
 ```
 
 Se quita desde "Aplicaciones instaladas", y con eso sale también del PATH.
@@ -87,12 +87,14 @@ prune restore create               # punto de restauración
 
 - **Rápido de escribir:** alcanza con una parte del id si no es ambigua (`prune apply
   align_left`), y la búsqueda no distingue mayúsculas ni acentos.
-- **Para scripts:** `--json` da la salida en JSON, `-y` no pregunta y `-n` / `--dry-run`
-  muestra el plan sin cambiar nada. Si algo falla, sale con código distinto de cero.
+- **Para scripts:** `--json` da la salida en JSON (siempre un solo documento), `-y` no
+  pregunta y `-n` / `--dry-run` muestra el plan sin cambiar nada. Si algo falla, sale con
+  código distinto de cero y el motivo va a la salida de errores.
 - **Interactivo:** sin comando abre una interfaz en la misma terminal. Flechas para moverse,
   espacio para marcar, `/` para buscar, Enter para ver el plan y aplicar, `u` para deshacer lo
-  último, `?` para las teclas. Con `1`, `2` y `3` se pasa entre ajustes, apps de Windows e
-  historial.
+  último, `?` para las teclas, `q` (o Esc dos veces) para salir. Con `1`, `2` y `3` se pasa
+  entre ajustes, apps de Windows e historial. Las teclas valen por su lugar en el teclado:
+  funcionan igual con una distribución que no sea latina.
 - **Administrador:** no lo pide al abrir. Mirar no lo necesita; los ajustes marcados `admin`
   sí: abrí una terminal de administrador o usá `sudo prune ...`. Si falta, avisa antes de
   cambiar nada.
@@ -101,7 +103,8 @@ prune restore create               # punto de restauración
   con `prune undo`. Limpiar archivos y quitar apps no se deshace: por eso piden confirmación.
 - **DNS con red de seguridad:** primero prueba los servidores y, después de cambiar, hay que
   confirmar que internet sigue andando; sin confirmación en 15 segundos, vuelve solo al DNS
-  anterior.
+  anterior. Con servidores a mano (`--servers`, `--servers6`) se toca solo la familia que
+  nombraste, y van sin cifrar salvo que pidas `--doh`.
 - **Idiomas:** español, inglés, portugués, francés, alemán, italiano, chino, japonés y ruso,
   ayuda incluida (`--lang` o `PRUNE_LANG`; por defecto, el de Windows).
 
@@ -137,7 +140,12 @@ deshacer desde la otra.
   título. Cada entrada se compara además con el catálogo.
 - **El historial de administrador no sale de Program Files:** un proceso de administrador
   nunca lee ni importa un historial guardado donde escribe cualquier programa (ver
-  [El historial](#el-historial)).
+  [El historial](#el-historial)). La carpeta propia de Core queda solo para administradores.
+- **Lo que se imprime no puede darle órdenes a la terminal:** los nombres de programas, los
+  valores del registro y demás textos que vienen del sistema salen sin caracteres de control
+  ni secuencias de escape.
+- **Lo que está en la red no se abre:** al listar lo que arranca con Windows, una ruta de red
+  se muestra pero no se toca.
 - **Catálogo cerrado:** solo se tocan los ajustes, las apps y los programas del catálogo que
   viene adentro del exe; nunca un id o una ruta escritos a mano.
 - **El PATH se edita con cuidado:** `prune path` agrega o quita solo su propia entrada y deja

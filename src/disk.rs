@@ -47,9 +47,9 @@ fn drives(ctx: &Ctx) -> Result<(), String> {
         let gauge = bar(used, d.total, 20);
         let gauge = if pct >= 90 { ui::red(&gauge) } else if pct >= 75 { ui::yellow(&gauge) } else { ui::green(&gauge) };
         let label = if d.label.is_empty() { String::new() } else { format!("  {}", d.label) };
-        anstream::println!("  {}  {gauge}  {}{}", ui::bold(&format!("{}:", d.letter)), tf!("{free} libres de {total}", free = ui::size(d.free), total = ui::size(d.total)), ui::dim(&label));
+        say!("  {}  {gauge}  {}{}", ui::bold(&format!("{}:", d.letter)), tf!("{free} libres de {total}", free = ui::size(d.free), total = ui::size(d.total)), ui::dim(&label));
     }
-    anstream::println!("\n{} {}", ui::dim(tr("Para ver qué ocupa lugar:")), ui::cyan("prune disk scan C"));
+    say!("\n{} {}", ui::dim(tr("Para ver qué ocupa lugar:")), ui::cyan("prune disk scan C"));
     Ok(())
 }
 
@@ -67,7 +67,8 @@ fn scan(ctx: &Ctx, letter: &str, limit: usize) -> Result<(), String> {
         let s = disk::status();
         if live {
             let text = tf!("{files} archivos, {size}", files = s.files, size = ui::size(s.bytes));
-            anstream::eprint!("\r{}", ui::dim(&ui::pad(&text, 50)));
+            // El retorno de carro es nuestro (pisa el renglón): va por fuera de `render`.
+            anstream::eprint!("\r{}", ui::render(&ui::dim(&ui::pad(&text, 50))));
             let _ = std::io::stderr().flush();
         }
         if let Some(e) = s.error {
@@ -86,21 +87,21 @@ fn scan(ctx: &Ctx, letter: &str, limit: usize) -> Result<(), String> {
         return ui::json(&Scan { summary, root });
     }
 
-    anstream::println!("{}  {}", ui::bold(&summary.root), tf!("{size} en {files} archivos", size = ui::size(summary.size), files = summary.files));
+    say!("{}  {}", ui::bold(&summary.root), tf!("{size} en {files} archivos", size = ui::size(summary.size), files = summary.files));
     if summary.denied_dirs > 0 {
-        anstream::println!("{}", ui::dim(&tf!("Carpetas que no se pudieron leer: {n} (con una terminal de administrador se ven más).", n = summary.denied_dirs)));
+        say!("{}", ui::dim(&tf!("Carpetas que no se pudieron leer: {n} (con una terminal de administrador se ven más).", n = summary.denied_dirs)));
     }
-    anstream::println!("\n{}", ui::bold(tr("Carpetas de la raíz")));
+    say!("\n{}", ui::bold(tr("Carpetas de la raíz")));
     for e in root.children.iter().take(limit) {
-        anstream::println!("  {}  {}  {}", ui::pad(&ui::size(e.size), 9), ui::cyan(&bar(e.size, summary.size, 16)), e.name);
+        say!("  {}  {}  {}", ui::pad(&ui::size(e.size), 9), ui::cyan(&bar(e.size, summary.size, 16)), e.name);
     }
     if root.own > 0 {
-        anstream::println!("  {}  {}  {}", ui::pad(&ui::size(root.own), 9), ui::dim(&bar(root.own, summary.size, 16)), ui::dim(tr("(archivos sueltos)")));
+        say!("  {}  {}  {}", ui::pad(&ui::size(root.own), 9), ui::dim(&bar(root.own, summary.size, 16)), ui::dim(tr("(archivos sueltos)")));
     }
     if !summary.hotspots.is_empty() {
-        anstream::println!("\n{}", ui::bold(tr("Carpetas que más ocupan")));
+        say!("\n{}", ui::bold(tr("Carpetas que más ocupan")));
         for h in summary.hotspots.iter().take(limit) {
-            anstream::println!("  {}  {}", ui::pad(&ui::size(h.size), 9), h.path);
+            say!("  {}  {}", ui::pad(&ui::size(h.size), 9), h.path);
         }
     }
     Ok(())

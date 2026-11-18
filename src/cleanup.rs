@@ -59,7 +59,7 @@ fn blocked(ctx: &Ctx, v: &CleanView) -> Option<&'static str> {
 pub fn run(ctx: &Ctx, cmd: Option<CleanupCmd>) -> Result<(), String> {
     let foreign = ctx.info.foreign_user.is_some();
     if !ctx.json {
-        anstream::eprintln!("{}", ui::dim(tr("Calculando el espacio…")));
+        note!("{}", ui::dim(tr("Calculando el espacio…")));
     }
     let views = cleanup::scan(ctx.info.elevated, foreign);
     let (ids, all) = match cmd.unwrap_or(CleanupCmd::Scan) {
@@ -87,35 +87,41 @@ pub fn run(ctx: &Ctx, cmd: Option<CleanupCmd>) -> Result<(), String> {
     }
     let total: u64 = picked.iter().map(|v| v.bytes).sum();
     if picked.is_empty() || total == 0 {
-        anstream::println!("{}", tr("No hay nada para borrar."));
+        // En JSON, "nada" también es JSON: una lista vacía de resultados.
+        if ctx.json {
+            return ui::json(&Vec::<cleanup::CleanResult>::new());
+        }
+        say!("{}", tr("No hay nada para borrar."));
         return Ok(());
     }
     ctx.need_yes_in_json()?;
     if !ctx.json {
         for v in &picked {
-            anstream::println!("  {}  {}", ui::pad(&title(&v.id), 34), ui::size(v.bytes));
+            say!("  {}  {}", ui::pad(&title(&v.id), 34), ui::size(v.bytes));
             if let Some(w) = v.warn {
-                anstream::println!("    {} {}", ui::yellow("●"), warn_text(w));
+                say!("    {} {}", ui::yellow("●"), warn_text(w));
             }
         }
     }
     if !ui::confirm(&tf!("¿Borrar {size}? No se puede deshacer.", size = ui::size(total)), ctx.yes)? {
-        anstream::println!("{}", tr("No se borró nada."));
+        say!("{}", tr("No se borró nada."));
         return Ok(());
     }
     let ids: Vec<String> = picked.iter().map(|v| v.id.clone()).collect();
     let results = cleanup::run(&ids, ctx.info.elevated, foreign);
     if ctx.json {
-        return ui::json(&results);
+        ui::json(&results)?;
+        // También en JSON: si una categoría falló, el comando falló.
+        return if results.iter().any(|r| r.error.is_some()) { Err(tr("Algunas categorías no se pudieron limpiar.").to_string()) } else { Ok(()) };
     }
     let freed: u64 = results.iter().map(|r| r.freed).sum();
     let skipped: u64 = results.iter().map(|r| r.skipped).sum();
     for r in results.iter().filter(|r| r.error.is_some()) {
-        anstream::println!("{} {}: {}", ui::red("✗"), title(&r.id), r.error.as_deref().unwrap_or_default());
+        say!("{} {}: {}", ui::red("✗"), title(&r.id), r.error.as_deref().unwrap_or_default());
     }
-    anstream::println!("{} {}", ui::green("✓"), tf!("Se liberaron {size}.", size = ui::size(freed)));
+    say!("{} {}", ui::green("✓"), tf!("Se liberaron {size}.", size = ui::size(freed)));
     if skipped > 0 {
-        anstream::println!("{}", ui::dim(&tf!("Archivos en uso que quedaron sin borrar: {n}", n = skipped)));
+        say!("{}", ui::dim(&tf!("Archivos en uso que quedaron sin borrar: {n}", n = skipped)));
     }
     if results.iter().any(|r| r.error.is_some()) {
         return Err(tr("Algunas categorías no se pudieron limpiar.").to_string());
@@ -135,15 +141,15 @@ fn scan(ctx: &Ctx, views: &[CleanView]) -> Result<(), String> {
             None => ui::pad(&ui::size(v.bytes), 18),
         };
         let warn = if v.warn.is_some() { ui::yellow(" !") } else { String::new() };
-        anstream::println!("  {}  {size} {}{warn}", ui::cyan(&ui::pad(&v.id, width)), title(&v.id));
+        say!("  {}  {size} {}{warn}", ui::cyan(&ui::pad(&v.id, width)), title(&v.id));
     }
     let total: u64 = views.iter().filter(|v| v.warn.is_none() && blocked(ctx, v).is_none()).map(|v| v.bytes).sum();
-    anstream::println!("\n{}", tf!("Se pueden liberar {size} sin tocar lo que tiene advertencia (!).", size = ui::size(total)));
+    say!("\n{}", tf!("Se pueden liberar {size} sin tocar lo que tiene advertencia (!).", size = ui::size(total)));
     for v in views.iter().filter(|v| v.warn.is_some()) {
         if let Some(w) = v.warn {
-            anstream::println!("  {} {}: {}", ui::yellow("!"), title(&v.id), ui::dim(warn_text(w)));
+            say!("  {} {}: {}", ui::yellow("!"), title(&v.id), ui::dim(warn_text(w)));
         }
     }
-    anstream::println!("{} {}", ui::dim(tr("Para limpiar:")), ui::cyan("prune cleanup run --all"));
+    say!("{} {}", ui::dim(tr("Para limpiar:")), ui::cyan("prune cleanup run --all"));
     Ok(())
 }

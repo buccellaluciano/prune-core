@@ -207,7 +207,6 @@
   "Para que algo deje de arrancar:": "Pour empêcher un élément de se lancer :",
   "Para que se vea hace falta: {r}.": "Pour voir le changement, il faut : {r}.",
   "Para quitar:": "Pour supprimer :",
-  "Para salir: q.": "Pour quitter : q.",
   "Para ver los puntos que hay hace falta una terminal de administrador.": "Pour voir les points existants, il faut un terminal administrateur.",
   "Para ver qué ocupa lugar:": "Pour voir ce qui prend de la place :",
   "Para volver a aplicarlos:": "Pour les réappliquer :",
@@ -407,5 +406,8 @@
   "no": "non",
   "Trabajando…": "En cours…",
   "Deshacer esta entrada va a escribir:": "Annuler cette entrée va écrire :",
-  "Hay además un historial de administrador con {n} entradas: abrí una terminal de administrador para verlo.": "Il existe aussi un historique administrateur avec {n} entrées : ouvrez un terminal administrateur pour le voir."
+  "Falta el nombre o el id.": "Le nom ou l'id est manquant.",
+  "Lo que hacés como administrador tiene su propio historial: abrí una terminal de administrador para verlo.": "Ce que vous faites en tant qu'administrateur a son propre historique : ouvrez un terminal administrateur pour le voir.",
+  "Para salir: q, o Esc otra vez.": "Pour quitter : q, ou Esc à nouveau.",
+  "… y {n} más": "… et {n} de plus"
 }

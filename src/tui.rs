@@ -86,6 +86,8 @@ pub struct App {
     message: Option<String>,
     /// La ventana no alcanza para dibujar nada: no se obedece ninguna tecla, salvo salir.
     too_small: bool,
+    /// Se acaba de apretar Esc sin nada que cerrar: otro Esc sale.
+    esc_armed: bool,
     section: Section,
     /// Apps del catálogo instaladas. None: todavía no se leyeron.
     bloat: Option<Vec<BloatView>>,
@@ -116,6 +118,45 @@ fn matches(v: &TweakView, q: &str) -> bool {
     has(&v.id) || has(&v.title) || has(&v.description) || v.tags.iter().any(|t| has(t))
 }
 
+/// La tecla de comando que corresponde a lo que se apretó.
+///
+/// Los comandos son letras latinas (`q`, `u`, `r`...), pero con otra distribución de teclado
+/// esas mismas teclas mandan otra letra: en un teclado ruso, la tecla Q manda `й`. Acá se
+/// pasa a la letra latina que está en ese lugar, y a minúscula (por si está Bloq Mayús).
+fn command_key(code: KeyCode) -> KeyCode {
+    let KeyCode::Char(c) = code else { return code };
+    let c = c.to_lowercase().next().unwrap_or(c);
+    KeyCode::Char(match c {
+        // ЙЦУКЕН (ruso): las letras que usa la interfaz, más `/` y `?`.
+        'й' => 'q',
+        'г' => 'u',
+        'к' => 'r',
+        'с' => 'c',
+        'н' => 'y',
+        'ы' => 's',
+        'т' => 'n',
+        'о' => 'j',
+        'л' => 'k',
+        'р' => 'h',
+        'д' => 'l',
+        '.' => '/',
+        ',' => '?',
+        other => other,
+    })
+}
+
+/// Deja una lista en a lo sumo `max` renglones: si no entra, el último dice cuántos faltan.
+/// Es para que una lista larga no empuje fuera de la ventana lo que hay que leer sí o sí.
+fn fit(mut lines: Vec<Line<'static>>, max: usize) -> Vec<Line<'static>> {
+    let max = max.max(1);
+    if lines.len() > max {
+        let hidden = lines.len() - (max - 1);
+        lines.truncate(max - 1);
+        lines.push(Line::styled(tf!("… y {n} más", n = hidden), dim()));
+    }
+    lines
+}
+
 /// Un rectángulo de `w` × `h` centrado en `area` (achicado si no entra).
 fn centered(area: Rect, w: u16, h: u16) -> Rect {
     let w = w.min(area.width.saturating_sub(2));
@@ -142,6 +183,7 @@ impl App {
             modal: Modal::None,
             message: None,
             too_small: false,
+            esc_armed: false,
             section: Section::Tweaks,
             bloat: None,
             bloat_row: 0,
@@ -244,6 +286,11 @@ impl App {
     }
 
     pub fn on_key(&mut self, key: KeyEvent) -> Action {
+        // Para los comandos vale el lugar de la tecla, no la letra (ver `command_key`). Lo que
+        // se escribe en la búsqueda va tal cual: por eso se guarda la tecla original.
+        let typed = key.code;
+        let key = KeyEvent { code: command_key(key.code), ..key };
+        let esc_armed = std::mem::take(&mut self.esc_armed);
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             return Action::Quit;
         }
@@ -309,7 +356,7 @@ impl App {
         }
 
         if self.typing {
-            match key.code {
+            match typed {
                 KeyCode::Char(c) => {
                     let mut s = self.search.clone();
                     s.push(c);
@@ -339,7 +386,7 @@ impl App {
             _ => {}
         }
         if self.section != Section::Tweaks {
-            return self.on_key_section(key);
+            return self.on_key_section(key, esc_armed);
         }
 
         match key.code {
@@ -347,8 +394,10 @@ impl App {
             KeyCode::Esc => {
                 if self.searching() {
                     self.set_search(String::new());
+                } else if esc_armed {
+                    return Action::Quit;
                 } else {
-                    self.message = Some(tr("Para salir: q.").into());
+                    self.arm_esc();
                 }
             }
             KeyCode::Char('/') => {
@@ -454,6 +503,13 @@ impl App {
 
     pub fn ask_undo(&mut self, id: u64, label: String, lines: Vec<String>) {
         self.modal = Modal::ConfirmUndo { id, label, lines };
+    }
+
+    /// Esc sin nada que cerrar: avisa cómo salir, y otro Esc seguido sale. Así se puede salir
+    /// sin depender de ninguna letra.
+    pub(super) fn arm_esc(&mut self) {
+        self.esc_armed = true;
+        self.message = Some(tr("Para salir: q, o Esc otra vez.").into());
     }
 
     /// Lo que sigue tarda (aplicar, quitar apps, deshacer): se avisa en pantalla.
@@ -761,15 +817,19 @@ impl App {
             }
             Modal::ConfirmRemove { ids } => {
                 let title_of = |id: &String| self.bloat.as_deref().unwrap_or_default().iter().find(|a| &a.id == id).map_or_else(|| id.clone(), |a| a.title.clone());
-                let mut lines: Vec<Line> = ids.iter().map(|id| Line::styled(title_of(id), bold())).collect();
-                lines.push(Line::raw(""));
-                lines.push(Line::raw(tr("No se puede deshacer desde P-Rune: se reinstalan desde Microsoft Store.")));
+                // El aviso va primero y la lista se acorta si no entra: lo que no puede quedar
+                // fuera de la ventana es que esto no se deshace.
+                let room = area.height.saturating_sub(6) as usize;
+                let mut lines = vec![Line::styled(tr("No se puede deshacer desde P-Rune: se reinstalan desde Microsoft Store."), fg(Color::Yellow)), Line::raw("")];
+                let names: Vec<Line> = ids.iter().map(|id| Line::styled(title_of(id), bold())).collect();
+                lines.extend(fit(names, room.saturating_sub(3)));
                 let h = (lines.len() as u16 + 3).min(area.height.saturating_sub(4));
                 popup(f, centered(area, wide.min(84), h), tf!("¿Quitar {n} apps?", n = ids.len()), tr("enter quitar · esc volver"), lines, 0);
             }
             Modal::ConfirmUndo { label, lines, .. } => {
+                let room = area.height.saturating_sub(6) as usize;
                 let mut out = vec![Line::styled(label.clone(), bold()), Line::raw(""), Line::raw(tr("Deshacer esta entrada va a escribir:"))];
-                out.extend(lines.iter().map(|l| Line::styled(format!("  {l}"), dim())));
+                out.extend(fit(lines.iter().map(|l| Line::styled(format!("  {l}"), dim())).collect(), room.saturating_sub(3)));
                 let h = (out.len() as u16 + 2).min(area.height.saturating_sub(4));
                 popup(f, centered(area, wide, h), tr("¿Deshacer?").into(), tr("enter deshacer · esc volver"), out, 0);
             }
@@ -777,7 +837,13 @@ impl App {
                 popup(f, centered(area, 34, 3), "P-Rune Core".into(), "", vec![Line::raw(tr("Trabajando…"))], 0);
             }
             Modal::Outcome { title, lines, note } => {
-                let mut out: Vec<Line> = lines.iter().map(|(ok, t)| outcome(*ok, t)).collect();
+                // Primero lo que falló, y la lista se acorta si no entra: la nota (hay que
+                // reiniciar, cómo deshacerlo) tiene que verse.
+                let room = area.height.saturating_sub(6) as usize;
+                let mut sorted: Vec<&(bool, String)> = lines.iter().collect();
+                sorted.sort_by_key(|(ok, _)| *ok);
+                let reserve = if note.is_some() { 4 } else { 0 };
+                let mut out = fit(sorted.iter().map(|(ok, t)| outcome(*ok, t)).collect(), room.saturating_sub(reserve));
                 if let Some(n) = note {
                     out.push(Line::raw(""));
                     out.push(Line::styled(n.clone(), dim()));
@@ -995,6 +1061,56 @@ pub(super) mod tests {
         assert_eq!(press(&mut a, KeyCode::Char('q')), Action::Quit);
         screen(&mut a, 100, 30);
         assert_eq!(press(&mut a, KeyCode::Enter), Action::Plan);
+    }
+
+    /// En un teclado ruso (o con Bloq Mayús) las mismas teclas tienen que hacer lo mismo.
+    #[test]
+    fn los_comandos_valen_por_la_tecla_no_por_la_letra() {
+        let mut a = app(true);
+        assert_eq!(press(&mut a, KeyCode::Char('й')), Action::Quit);
+        assert_eq!(press(&mut a, KeyCode::Char('Q')), Action::Quit);
+        assert_eq!(press(&mut a, KeyCode::Char('г')), Action::AskUndo);
+        assert_eq!(press(&mut a, KeyCode::Char('к')), Action::Reload);
+        // Ctrl+C también, aunque la C mande otra letra.
+        assert_eq!(a.on_key(KeyEvent::new(KeyCode::Char('с'), KeyModifiers::CONTROL)), Action::Quit);
+        // Al buscar, en cambio, lo que se escribe es lo que se escribe.
+        press(&mut a, KeyCode::Char('.'));
+        assert!(a.typing);
+        type_text(&mut a, "йQ");
+        assert_eq!(a.search, "йQ");
+    }
+
+    /// Se puede salir sin depender de ninguna letra: Esc dos veces.
+    #[test]
+    fn esc_dos_veces_sale() {
+        let mut a = app(true);
+        assert_eq!(press(&mut a, KeyCode::Esc), Action::None);
+        assert!(a.message.is_some());
+        assert_eq!(press(&mut a, KeyCode::Esc), Action::Quit);
+        // Con otra tecla en el medio hay que volver a empezar.
+        let mut a = app(true);
+        press(&mut a, KeyCode::Esc);
+        press(&mut a, KeyCode::Down);
+        assert_eq!(press(&mut a, KeyCode::Esc), Action::None);
+        // Esc que cierra algo (una búsqueda, un diálogo) no cuenta para salir.
+        let mut a = app(true);
+        press(&mut a, KeyCode::Char('?'));
+        press(&mut a, KeyCode::Esc);
+        assert_eq!(press(&mut a, KeyCode::Esc), Action::None);
+        // En las otras secciones también.
+        press(&mut a, KeyCode::Char('3'));
+        press(&mut a, KeyCode::Esc);
+        assert_eq!(press(&mut a, KeyCode::Esc), Action::Quit);
+    }
+
+    #[test]
+    fn una_lista_larga_se_acorta_y_dice_cuanto_falta() {
+        let lines = |n: usize| (0..n).map(|i| Line::raw(format!("renglón {i}"))).collect::<Vec<_>>();
+        assert_eq!(fit(lines(3), 5).len(), 3);
+        let cut = fit(lines(10), 4);
+        assert_eq!(cut.len(), 4);
+        assert!(cut[3].to_string().contains('7'), "{:?}", cut[3]);
+        assert_eq!(fit(lines(10), 0).len(), 1);
     }
 
     /// Mientras el motor trabaja se ve el aviso y las teclas no hacen nada.

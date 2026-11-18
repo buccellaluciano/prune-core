@@ -207,7 +207,6 @@
   "Para que algo deje de arrancar:": "Per impedire a qualcosa di avviarsi:",
   "Para que se vea hace falta: {r}.": "Per vederlo serve: {r}.",
   "Para quitar:": "Per rimuovere:",
-  "Para salir: q.": "Per uscire: q.",
   "Para ver los puntos que hay hace falta una terminal de administrador.": "Per vedere i punti esistenti serve un terminale da amministratore.",
   "Para ver qué ocupa lugar:": "Per vedere cosa occupa spazio:",
   "Para volver a aplicarlos:": "Per applicarle di nuovo:",
@@ -407,5 +406,8 @@
   "no": "no",
   "Trabajando…": "In corso…",
   "Deshacer esta entrada va a escribir:": "Annullare questa voce scriverà:",
-  "Hay además un historial de administrador con {n} entradas: abrí una terminal de administrador para verlo.": "C'è anche una cronologia di amministratore con {n} voci: apri un terminale di amministratore per vederla."
+  "Falta el nombre o el id.": "Manca il nome o l'id.",
+  "Lo que hacés como administrador tiene su propio historial: abrí una terminal de administrador para verlo.": "Quello che fai come amministratore ha una cronologia a parte: apri un terminale di amministratore per vederla.",
+  "Para salir: q, o Esc otra vez.": "Per uscire: q, o di nuovo Esc.",
+  "… y {n} más": "… e altri {n}"
 }

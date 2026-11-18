@@ -207,7 +207,6 @@
   "Para que algo deje de arrancar:": "让某项不再启动：",
   "Para que se vea hace falta: {r}.": "要看到效果，需要：{r}。",
   "Para quitar:": "移除：",
-  "Para salir: q.": "按 q 退出。",
   "Para ver los puntos que hay hace falta una terminal de administrador.": "查看现有还原点需要管理员终端。",
   "Para ver qué ocupa lugar:": "查看空间占用：",
   "Para volver a aplicarlos:": "重新应用：",
@@ -407,5 +406,8 @@
   "no": "否",
   "Trabajando…": "正在处理…",
   "Deshacer esta entrada va a escribir:": "撤销此条目将写入：",
-  "Hay además un historial de administrador con {n} entradas: abrí una terminal de administrador para verlo.": "另有一份管理员历史记录，共 {n} 条：请打开管理员终端查看。"
+  "Falta el nombre o el id.": "缺少名称或 id。",
+  "Lo que hacés como administrador tiene su propio historial: abrí una terminal de administrador para verlo.": "以管理员身份执行的操作有单独的历史记录：请打开管理员终端查看。",
+  "Para salir: q, o Esc otra vez.": "退出：按 q，或再按一次 Esc。",
+  "… y {n} más": "… 还有 {n} 项"
 }

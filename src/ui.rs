@@ -71,32 +71,108 @@ pub fn fmt(es: &'static str, args: &[(&str, &dyn Display)]) -> String {
     s
 }
 
-fn paint(style: Style, s: &str) -> String {
-    format!("{style}{s}{style:#}")
+// ───────────────────────── Colores y texto que no es nuestro ─────────────────────────
+//
+// Mucho de lo que se imprime viene del sistema: nombres de programas que arrancan con
+// Windows, valores del registro, datos del proxy. Un programa sin permisos puede poner ahí
+// secuencias de escape que, en la terminal de un administrador, mueven el cursor, borran
+// renglones o reescriben el plan que está por confirmar.
+//
+// Por eso los colores no se escriben como secuencias de escape sino con marcas propias
+// (caracteres de uso privado), y todo lo que se imprime pasa por `render` (lo hacen `say!`,
+// `note!` y `ask!`): ahí se saca cualquier carácter de control que traiga el texto y recién
+// después las marcas se cambian por los colores de verdad.
+
+const GREEN: char = '\u{E000}';
+const YELLOW: char = '\u{E001}';
+const RED: char = '\u{E002}';
+const CYAN: char = '\u{E003}';
+const DIM: char = '\u{E004}';
+const BOLD: char = '\u{E005}';
+const RESET: char = '\u{E00F}';
+
+fn style_of(mark: char) -> Option<Style> {
+    Some(match mark {
+        GREEN => AnsiColor::Green.on_default(),
+        YELLOW => AnsiColor::Yellow.on_default(),
+        RED => AnsiColor::Red.on_default(),
+        CYAN => AnsiColor::Cyan.on_default(),
+        DIM => Style::new().dimmed(),
+        BOLD => Style::new().bold(),
+        _ => return None,
+    })
+}
+
+fn paint(mark: char, s: &str) -> String {
+    format!("{mark}{s}{RESET}")
+}
+
+/// Caracteres que no se le pasan a la terminal: los de control (ESC incluido; el salto de
+/// renglón es el único que queda) y los que invierten el sentido del texto.
+fn unsafe_char(c: char) -> bool {
+    c != '\n' && (c.is_control() || matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'))
+}
+
+/// Deja un texto listo para la terminal: sin caracteres de control y con los colores puestos.
+pub fn render(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() + 16);
+    let mut open: Option<Style> = None;
+    let close = |out: &mut String, open: &mut Option<Style>| {
+        if let Some(style) = open.take() {
+            out.push_str(&format!("{style:#}"));
+        }
+    };
+    for c in text.chars() {
+        if c == RESET {
+            close(&mut out, &mut open);
+        } else if let Some(style) = style_of(c) {
+            close(&mut out, &mut open);
+            out.push_str(&format!("{style}"));
+            open = Some(style);
+        } else if !unsafe_char(c) {
+            out.push(c);
+        }
+    }
+    close(&mut out, &mut open);
+    out
+}
+
+/// Para un dato que va en un solo renglón (un nombre, un valor): además de lo que saca
+/// `render`, los saltos de renglón pasan a ser espacios. Si no, un nombre con un salto adentro
+/// podría hacerse pasar por un renglón más de la salida.
+pub fn clean(s: &str) -> String {
+    s.chars().map(|c| if c == '\n' || unsafe_char(c) { ' ' } else { c }).collect()
+}
+
+/// Un nombre o id escrito por la persona no puede venir vacío: vacío coincide con todo, y con
+/// un solo candidato se terminaría actuando sobre algo que nadie nombró (pasa con una variable
+/// vacía en un script).
+pub fn need_text(query: &str) -> Result<(), String> {
+    if query.trim().is_empty() { Err(tr("Falta el nombre o el id.").to_string()) } else { Ok(()) }
 }
 
 pub fn green(s: &str) -> String {
-    paint(AnsiColor::Green.on_default(), s)
+    paint(GREEN, s)
 }
 
 pub fn yellow(s: &str) -> String {
-    paint(AnsiColor::Yellow.on_default(), s)
+    paint(YELLOW, s)
 }
 
 pub fn red(s: &str) -> String {
-    paint(AnsiColor::Red.on_default(), s)
+    paint(RED, s)
 }
 
 pub fn cyan(s: &str) -> String {
-    paint(AnsiColor::Cyan.on_default(), s)
+    paint(CYAN, s)
 }
 
 pub fn dim(s: &str) -> String {
-    paint(Style::new().dimmed(), s)
+    paint(DIM, s)
 }
 
 pub fn bold(s: &str) -> String {
-    paint(Style::new().bold(), s)
+    paint(BOLD, s)
 }
 
 /// Cuántas columnas ocupa un texto en la terminal: los acentos cuentan uno y los caracteres
@@ -155,6 +231,7 @@ pub fn size(bytes: u64) -> String {
 
 pub fn json<T: Serialize>(value: &T) -> Result<(), String> {
     let text = serde_json::to_string_pretty(value).map_err(|e| e.to_string())?;
+    // serde ya escapa los caracteres de control dentro de cada texto: va tal cual.
     anstream::println!("{text}");
     Ok(())
 }
@@ -178,7 +255,7 @@ pub fn confirm(question: &str, yes: bool) -> Result<bool, String> {
     if !std::io::stdin().is_terminal() {
         return Err(tr("Hace falta confirmar y no hay una terminal para preguntar: agregá --yes.").to_string());
     }
-    anstream::eprint!("{question} {} ", dim(tr("[s/N]")));
+    ask!("{question} {} ", dim(tr("[s/N]")));
     let _ = std::io::stderr().flush();
     let mut line = String::new();
     std::io::stdin().read_line(&mut line).map_err(|e| e.to_string())?;
@@ -204,6 +281,46 @@ mod tests {
         assert_eq!(fold("Télémétrie"), "telemetrie");
         assert_eq!(fold("Búsqueda ÑANDÚ"), "busqueda nandu");
         assert_eq!(fold("遥测"), "遥测");
+    }
+
+    /// Lo que viene del sistema no puede mandarle órdenes a la terminal.
+    #[test]
+    fn las_secuencias_de_escape_ajenas_no_pasan() {
+        // Borrar la pantalla, subir el cursor, cambiar el título, un retorno de carro.
+        let evil = "Steam\u{1b}[2J\u{1b}[1A\u{1b}]0;hola\u{7}\rMicrosoft\u{9b}31m";
+        let shown = render(&format!("{} {evil}", green("●")));
+        assert!(!shown.contains(evil));
+        // Lo único de control que queda es lo nuestro: el color del punto y su cierre.
+        assert_eq!(shown.matches('\u{1b}').count(), 2, "{shown:?}");
+        assert!(!shown.contains('\r') && !shown.contains('\u{7}') && !shown.contains('\u{9b}'));
+        assert!(shown.contains("Steam[2J") && shown.contains("Microsoft"));
+        // El texto que invierte el sentido de lectura tampoco.
+        assert_eq!(render("a\u{202e}b"), "ab");
+        // Los saltos de renglón nuestros sí.
+        assert_eq!(render("uno\ndos"), "uno\ndos");
+    }
+
+    #[test]
+    fn un_dato_de_un_renglon_no_puede_fingir_otro_renglon() {
+        assert_eq!(clean("Steam\n● Microsoft Windows"), "Steam ● Microsoft Windows");
+        assert_eq!(clean("a\tb\u{1b}[0m"), "a b [0m");
+        assert_eq!(clean("Conexión de área local"), "Conexión de área local");
+    }
+
+    #[test]
+    fn los_colores_propios_se_ponen_y_se_cierran() {
+        let shown = render(&format!("{} y {}", bold("uno"), red("dos")));
+        assert_eq!(shown.matches('\u{1b}').count(), 4, "{shown:?}");
+        assert!(shown.ends_with("\u{1b}[0m"), "{shown:?}");
+        // Sin colores no se agrega nada.
+        assert_eq!(render("texto común"), "texto común");
+    }
+
+    #[test]
+    fn un_nombre_vacio_no_es_un_nombre() {
+        assert!(need_text("").is_err());
+        assert!(need_text("   ").is_err());
+        assert!(need_text("steam").is_ok());
     }
 
     #[test]

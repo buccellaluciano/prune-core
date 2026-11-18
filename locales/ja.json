@@ -207,7 +207,6 @@
   "Para que algo deje de arrancar:": "起動しないようにするには:",
   "Para que se vea hace falta: {r}.": "反映に必要な操作: {r}。",
   "Para quitar:": "削除するには:",
-  "Para salir: q.": "終了するには q を押します。",
   "Para ver los puntos que hay hace falta una terminal de administrador.": "既存の復元ポイントを表示するには、管理者権限のターミナルが必要です。",
   "Para ver qué ocupa lugar:": "容量の使い道を見るには:",
   "Para volver a aplicarlos:": "もう一度適用するには:",
@@ -407,5 +406,8 @@
   "no": "いいえ",
   "Trabajando…": "処理中…",
   "Deshacer esta entrada va a escribir:": "このエントリを元に戻すと、次の内容が書き込まれます:",
-  "Hay además un historial de administrador con {n} entradas: abrí una terminal de administrador para verlo.": "管理者の履歴が別に {n} 件あります。表示するには管理者ターミナルを開いてください。"
+  "Falta el nombre o el id.": "名前または id が指定されていません。",
+  "Lo que hacés como administrador tiene su propio historial: abrí una terminal de administrador para verlo.": "管理者として行った操作の履歴は別に保存されています。表示するには管理者ターミナルを開いてください。",
+  "Para salir: q, o Esc otra vez.": "終了するには q、またはもう一度 Esc を押します。",
+  "… y {n} más": "… ほか {n} 件"
 }

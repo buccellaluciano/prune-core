@@ -207,7 +207,6 @@
   "Para que algo deje de arrancar:": "Чтобы отключить автозапуск:",
   "Para que se vea hace falta: {r}.": "Чтобы изменение стало видно, нужно {r}.",
   "Para quitar:": "Чтобы удалить:",
-  "Para salir: q.": "Выход: q.",
   "Para ver los puntos que hay hace falta una terminal de administrador.": "Чтобы увидеть существующие точки, нужен терминал администратора.",
   "Para ver qué ocupa lugar:": "Чтобы узнать, что занимает место:",
   "Para volver a aplicarlos:": "Чтобы применить их снова:",
@@ -407,5 +406,8 @@
   "no": "нет",
   "Trabajando…": "Выполняется…",
   "Deshacer esta entrada va a escribir:": "Отмена этой записи запишет:",
-  "Hay además un historial de administrador con {n} entradas: abrí una terminal de administrador para verlo.": "Есть также журнал администратора (записей: {n}): откройте терминал администратора, чтобы его увидеть."
+  "Falta el nombre o el id.": "Не указано имя или id.",
+  "Lo que hacés como administrador tiene su propio historial: abrí una terminal de administrador para verlo.": "У действий от имени администратора отдельный журнал: откройте терминал администратора, чтобы его увидеть.",
+  "Para salir: q, o Esc otra vez.": "Выход: q или ещё раз Esc.",
+  "… y {n} más": "… и ещё {n}"
 }

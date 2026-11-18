@@ -48,7 +48,7 @@ impl App {
         }
     }
 
-    pub(super) fn on_key_section(&mut self, key: KeyEvent) -> Action {
+    pub(super) fn on_key_section(&mut self, key: KeyEvent, esc_armed: bool) -> Action {
         let len = self.section_len();
         let reload = if self.section == Section::Bloat { Action::LoadBloat } else { Action::LoadHistory };
         let row = if self.section == Section::Bloat { &mut self.bloat_row } else { &mut self.history_row };
@@ -62,7 +62,8 @@ impl App {
             KeyCode::PageDown => step(10),
             KeyCode::Home => step(isize::MIN / 2),
             KeyCode::End => step(isize::MAX / 2),
-            KeyCode::Esc => self.message = Some(tr("Para salir: q.").into()),
+            KeyCode::Esc if esc_armed => return Action::Quit,
+            KeyCode::Esc => self.arm_esc(),
             KeyCode::Char('?') => self.modal = Modal::Help,
             _ if self.section == Section::Bloat => self.on_key_bloat(key),
             _ => self.on_key_history(key),

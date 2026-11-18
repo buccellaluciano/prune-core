@@ -77,11 +77,46 @@ fn journal_dir_for(elevated: bool, protected: Option<PathBuf>, program_files: Op
     if elevated { protected.or_else(|| program_files.map(|pf| pf.join(CORE_DIR).join("data"))) } else { user }
 }
 
-/// El historial de administrador de esta PC, si ya existe. Es para avisarle a quien mira sin
-/// administrador que hay otro historial; no crea nada.
+/// La carpeta del historial de administrador de esta PC, si ya existe. Es para avisarle a
+/// quien mira sin administrador que hay otro historial; no crea nada ni lo lee (la carpeta
+/// propia de Core no se puede leer sin administrador: ver `admin_only`).
 pub fn admin_journal_dir() -> Option<PathBuf> {
     let dir = journal_dir_for(true, protected_data_dir(), crate::winget::program_files(), None)?;
-    dir.join("journal.json").is_file().then_some(dir)
+    dir.is_dir().then_some(dir)
+}
+
+/// Deja una carpeta (y lo que tenga adentro) solo para Administradores y SYSTEM.
+///
+/// En Program Files los usuarios no pueden escribir, pero sí leer, y con solo tener abierto
+/// un archivo ajeno ya se le puede trabar a otro: quien abriera `journal.lock` o
+/// `journal.json` sin soltarlos dejaría a Core sin poder anotar ningún cambio.
+fn admin_only(dir: &std::path::Path) -> Result<(), String> {
+    // P = protegida (no hereda de Program Files); acceso total solo a SYSTEM y Administradores.
+    set_dacl(dir, "D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)")
+}
+
+fn set_dacl(dir: &std::path::Path, sddl: &str) -> Result<(), String> {
+    use windows::Win32::Foundation::{HLOCAL, LocalFree};
+    use windows::Win32::Security::Authorization::{ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1, SE_FILE_OBJECT, SetNamedSecurityInfoW};
+    use windows::Win32::Security::{ACL, DACL_SECURITY_INFORMATION, GetSecurityDescriptorDacl, PROTECTED_DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR};
+    use windows::core::{BOOL, PCWSTR};
+
+    let wide = |s: &str| -> Vec<u16> { s.encode_utf16().chain(std::iter::once(0)).collect() };
+    let (sddl, path) = (wide(sddl), wide(&dir.to_string_lossy()));
+    unsafe {
+        let mut sd = PSECURITY_DESCRIPTOR::default();
+        ConvertStringSecurityDescriptorToSecurityDescriptorW(PCWSTR(sddl.as_ptr()), SDDL_REVISION_1, &mut sd, None).map_err(|e| e.message())?;
+        let (mut present, mut defaulted) = (BOOL::default(), BOOL::default());
+        let mut dacl: *mut ACL = std::ptr::null_mut();
+        let result = GetSecurityDescriptorDacl(sd, &mut present, &mut dacl, &mut defaulted).map_err(|e| e.message()).and_then(|()| {
+            // Con PROTECTED, lo que hay adentro pasa a heredar de esta carpeta y no de Program Files.
+            SetNamedSecurityInfoW(PCWSTR(path.as_ptr()), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, None, None, Some(dacl), None)
+                .ok()
+                .map_err(|e| e.message())
+        });
+        let _ = LocalFree(Some(HLOCAL(sd.0)));
+        result
+    }
 }
 
 /// Dónde guardar el historial (ver `journal_dir_for`). Como administrador crea la carpeta si
@@ -93,6 +128,11 @@ pub fn journal_dir(elevated: bool) -> Result<PathBuf, String> {
         return Ok(dir);
     }
     std::fs::create_dir_all(&dir).map_err(|e| t!("journal_save_failed", error = e))?;
+    // La carpeta propia de Core se cierra a los usuarios. La de la app de escritorio no se
+    // toca: es de la app. Si no se puede cerrar, el historial funciona igual.
+    if desktop_data_dir().is_none() {
+        let _ = admin_only(&dir);
+    }
     let new = dir.join("journal.json");
     // La 0.1.0 se llamaba "Prune" y se instalaba en Program Files\Prune: su historial
     // (solo escribible por admins, igual que este) se trae a la carpeta nueva.
@@ -125,6 +165,23 @@ mod tests {
         assert_eq!(journal_dir_for(true, None, None, Some(user.clone())), None);
         // Sin administrador, siempre la del usuario, aunque haya una protegida.
         assert_eq!(journal_dir_for(false, Some(app), Some(pf), Some(user.clone())), Some(user));
+    }
+
+    /// Cambiar los permisos de una carpeta funciona y lo de adentro sigue usable para quien
+    /// queda con acceso. (Con los permisos de verdad, solo administradores, este test no podría
+    /// limpiar después: acá se le deja acceso también al dueño.)
+    #[test]
+    fn los_permisos_de_una_carpeta_se_pueden_cerrar() {
+        let dir = std::env::temp_dir().join(format!("debloater-acl-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("antes.txt"), b"x").unwrap();
+        set_dacl(&dir, "D:P(A;OICI;FA;;;OW)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)").unwrap();
+        std::fs::write(dir.join("despues.txt"), b"x").unwrap();
+        assert_eq!(std::fs::read(dir.join("antes.txt")).unwrap(), b"x");
+        // Un texto de permisos que no es válido se rechaza sin tocar nada.
+        assert!(set_dacl(&dir, "esto no es SDDL").is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

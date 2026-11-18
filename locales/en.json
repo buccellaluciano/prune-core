@@ -207,7 +207,6 @@
   "Para que algo deje de arrancar:": "To stop something from starting:",
   "Para que se vea hace falta: {r}.": "To see the change you need to: {r}.",
   "Para quitar:": "To remove:",
-  "Para salir: q.": "To quit: q.",
   "Para ver los puntos que hay hace falta una terminal de administrador.": "Seeing the existing restore points needs an administrator terminal.",
   "Para ver qué ocupa lugar:": "To see what takes up space:",
   "Para volver a aplicarlos:": "To apply them again:",
@@ -407,5 +406,8 @@
   "no": "no",
   "Trabajando…": "Working…",
   "Deshacer esta entrada va a escribir:": "Undoing this entry will write:",
-  "Hay además un historial de administrador con {n} entradas: abrí una terminal de administrador para verlo.": "There is also an administrator history with {n} entries: open an administrator terminal to see it."
+  "Falta el nombre o el id.": "The name or id is missing.",
+  "Lo que hacés como administrador tiene su propio historial: abrí una terminal de administrador para verlo.": "What you do as administrator has its own history: open an administrator terminal to see it.",
+  "Para salir: q, o Esc otra vez.": "To quit: q, or Esc again.",
+  "… y {n} más": "… and {n} more"
 }

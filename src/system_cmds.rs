@@ -28,7 +28,7 @@ where
         if ctx.json {
             return ui::json(&Done { changed: false, entry_id: None, label: None });
         }
-        anstream::println!("{}", tr("Ya estaba así: no se cambió nada."));
+        say!("{}", tr("Ya estaba así: no se cambió nada."));
         return Ok(());
     };
     let text = label(&change);
@@ -39,8 +39,8 @@ where
     if ctx.json {
         return ui::json(&Done { changed: true, entry_id: Some(entry_id), label: Some(text) });
     }
-    anstream::println!("{} {text}", ui::green("✓"));
-    anstream::println!("{} {}", ui::dim(tr("Para deshacerlo:")), ui::cyan("prune undo"));
+    say!("{} {text}", ui::green("✓"));
+    say!("{} {}", ui::dim(tr("Para deshacerlo:")), ui::cyan("prune undo"));
     Ok(())
 }
 
@@ -105,21 +105,21 @@ fn wu_status(ctx: &Ctx) -> Result<(), String> {
         Some(until) => {
             let left = until - now;
             let text = if left >= 86_400 { tf!("En pausa: quedan {n} días.", n = left / 86_400) } else { tf!("En pausa: quedan {n} horas.", n = (left / 3600).max(1)) };
-            anstream::println!("{} {text}", ui::yellow("●"));
+            say!("{} {text}", ui::yellow("●"));
         }
-        None => anstream::println!("{} {}", ui::green("●"), tr("Las actualizaciones no están en pausa.")),
+        None => say!("{} {}", ui::green("●"), tr("Las actualizaciones no están en pausa.")),
     }
-    anstream::println!("{}", ui::dim(&tf!("Se pueden pausar hasta {n} días.", n = s.max_pause_days)));
+    say!("{}", ui::dim(&tf!("Se pueden pausar hasta {n} días.", n = s.max_pause_days)));
     match (s.active_start, s.active_end, s.smart_hours) {
-        (_, _, Some(true)) => anstream::println!("{}", tr("Horas activas: las decide Windows según el uso.")),
-        (Some(a), Some(b), _) => anstream::println!("{}", tf!("Horas activas: de {a} a {b} h.", a = a, b = b)),
+        (_, _, Some(true)) => say!("{}", tr("Horas activas: las decide Windows según el uso.")),
+        (Some(a), Some(b), _) => say!("{}", tf!("Horas activas: de {a} a {b} h.", a = a, b = b)),
         _ => {}
     }
     if s.pause_policy || s.hours_policy {
-        anstream::println!("{} {}", ui::yellow("●"), tr("Una directiva de la organización controla parte de esto: puede que no se pueda cambiar."));
+        say!("{} {}", ui::yellow("●"), tr("Una directiva de la organización controla parte de esto: puede que no se pueda cambiar."));
     }
     if !s.elevated {
-        anstream::println!("{}", ui::dim(tr("Cambiarlo pide una terminal de administrador.")));
+        say!("{}", ui::dim(tr("Cambiarlo pide una terminal de administrador.")));
     }
     Ok(())
 }
@@ -155,14 +155,15 @@ fn source_text(s: startup::Source) -> &'static str {
 }
 
 fn find_startup<'a>(items: &'a [startup::StartupItem], query: &str) -> Result<&'a startup::StartupItem, String> {
+    ui::need_text(query)?;
     let q = ui::fold(query);
-    let exact: Vec<&startup::StartupItem> = items.iter().filter(|i| i.name.to_lowercase() == q || i.title.to_lowercase() == q).collect();
+    let exact: Vec<&startup::StartupItem> = items.iter().filter(|i| ui::fold(&i.name) == q || ui::fold(&i.title) == q).collect();
     let hits = if exact.is_empty() { items.iter().filter(|i| ui::fold(&i.name).contains(&q) || ui::fold(&i.title).contains(&q)).collect() } else { exact };
     match hits.as_slice() {
         [one] => Ok(one),
         [] => Err(tf!("Nada que arranque con Windows se llama así: {query}. Mirá `prune startup list`.", query = query)),
         many => {
-            let names: Vec<String> = many.iter().take(8).map(|i| format!("{} ({})", i.name, source_text(i.source))).collect();
+            let names: Vec<String> = many.iter().take(8).map(|i| format!("{} ({})", ui::clean(&i.name), source_text(i.source))).collect();
             Err(tf!("`{query}` coincide con varios: {names}", query = query, names = names.join(", ")))
         }
     }
@@ -185,15 +186,17 @@ fn startup_list(ctx: &Ctx, status: &startup::StartupStatus) -> Result<(), String
         return ui::json(status);
     }
     if status.items.is_empty() {
-        anstream::println!("{}", tr("Nada arranca con Windows."));
+        say!("{}", tr("Nada arranca con Windows."));
         return Ok(());
     }
-    let width = status.items.iter().map(|i| ui::width(&i.title)).max().unwrap_or(0).min(40);
-    for i in &status.items {
+    // Los nombres los pone cada programa (los de tu usuario, sin pedir permiso): se limpian.
+    let titles: Vec<String> = status.items.iter().map(|i| ui::clean(&i.title)).collect();
+    let width = titles.iter().map(|t| ui::width(t)).max().unwrap_or(0).min(40);
+    for (i, title) in status.items.iter().zip(&titles) {
         let mark = if i.enabled { ui::green("●") } else { ui::dim("○") };
         let mut notes = vec![source_text(i.source).to_string()];
         if let Some(p) = &i.publisher {
-            notes.push(p.clone());
+            notes.push(ui::clean(p));
         }
         if i.system {
             notes.push(tr("de Windows").to_string());
@@ -201,10 +204,10 @@ fn startup_list(ctx: &Ctx, status: &startup::StartupStatus) -> Result<(), String
         if !i.exists {
             notes.push(tr("el archivo ya no existe").to_string());
         }
-        let title = if i.enabled { ui::pad(&i.title, width) } else { ui::dim(&ui::pad(&i.title, width)) };
-        anstream::println!("  {mark} {title}  {}", ui::dim(&notes.join(" · ")));
+        let title = if i.enabled { ui::pad(title, width) } else { ui::dim(&ui::pad(title, width)) };
+        say!("  {mark} {title}  {}", ui::dim(&notes.join(" · ")));
     }
-    anstream::println!("\n{} {}", ui::dim(tr("Para que algo deje de arrancar:")), ui::cyan(&format!("prune startup disable <{}>", tr("NOMBRE").to_lowercase())));
+    say!("\n{} {}", ui::dim(tr("Para que algo deje de arrancar:")), ui::cyan(&format!("prune startup disable <{}>", tr("NOMBRE").to_lowercase())));
     Ok(())
 }
 
@@ -244,18 +247,18 @@ fn proxy_status(ctx: &Ctx) -> Result<(), String> {
     if ctx.json {
         return ui::json(&s);
     }
-    let detail = |text: &str| if text.is_empty() { String::new() } else { format!("  {}", ui::dim(text)) };
-    anstream::println!("{}  {}{}", ui::pad(tr("Servidor proxy:"), 28), yes_no(s.manual), detail(&s.server));
-    anstream::println!("{}  {}{}", ui::pad(tr("Script de configuración:"), 28), yes_no(s.pac), detail(&s.pac_url));
-    anstream::println!("{}  {}", ui::pad(tr("Detectar automáticamente:"), 28), yes_no(s.auto_detect));
+    let detail = |text: &str| if text.is_empty() { String::new() } else { format!("  {}", ui::dim(&ui::clean(text))) };
+    say!("{}  {}{}", ui::pad(tr("Servidor proxy:"), 28), yes_no(s.manual), detail(&s.server));
+    say!("{}  {}{}", ui::pad(tr("Script de configuración:"), 28), yes_no(s.pac), detail(&s.pac_url));
+    say!("{}  {}", ui::pad(tr("Detectar automáticamente:"), 28), yes_no(s.auto_detect));
     if let Some(w) = &s.winhttp {
-        anstream::println!("{}  {w}", ui::pad(tr("Proxy del sistema (WinHTTP):"), 28));
+        say!("{}  {w}", ui::pad(tr("Proxy del sistema (WinHTTP):"), 28));
     }
     if s.policy {
-        anstream::println!("{} {}", ui::yellow("●"), tr("Una directiva de la organización controla el proxy: puede que no se pueda cambiar."));
+        say!("{} {}", ui::yellow("●"), tr("Una directiva de la organización controla el proxy: puede que no se pueda cambiar."));
     }
     if let Some(user) = &s.foreign_user {
-        anstream::println!("{} {}", ui::yellow("●"), tf!("Esta terminal corre con otra cuenta que la de la sesión de {user}.", user = user));
+        say!("{} {}", ui::yellow("●"), tf!("Esta terminal corre con otra cuenta que la de la sesión de {user}.", user = user));
     }
     Ok(())
 }
@@ -278,19 +281,19 @@ pub fn restore(ctx: &Ctx, cmd: Option<RestoreCmd>) -> Result<(), String> {
                 return ui::json(&s);
             }
             if s.enabled {
-                anstream::println!("{} {}", ui::green("●"), tr("La protección del sistema está activada."));
+                say!("{} {}", ui::green("●"), tr("La protección del sistema está activada."));
             } else {
-                anstream::println!("{} {}", ui::yellow("●"), tr("La protección del sistema está desactivada: no se pueden crear puntos de restauración."));
+                say!("{} {}", ui::yellow("●"), tr("La protección del sistema está desactivada: no se pueden crear puntos de restauración."));
             }
             if s.policy {
-                anstream::println!("{} {}", ui::yellow("●"), tr("Una directiva de la organización la desactiva."));
+                say!("{} {}", ui::yellow("●"), tr("Una directiva de la organización la desactiva."));
             }
             if !s.readable {
-                anstream::println!("{}", ui::dim(tr("Para ver los puntos que hay hace falta una terminal de administrador.")));
+                say!("{}", ui::dim(tr("Para ver los puntos que hay hace falta una terminal de administrador.")));
             } else {
-                anstream::println!("{}", tf!("Puntos de restauración: {n}", n = s.count));
+                say!("{}", tf!("Puntos de restauración: {n}", n = s.count));
                 if let Some(last) = &s.last {
-                    anstream::println!("{} {}  {}", tr("Último:"), last.description, ui::dim(&ui::ago(last.at)));
+                    say!("{} {}  {}", tr("Último:"), ui::clean(&last.description), ui::dim(&ui::ago(last.at)));
                 }
             }
             Ok(())
@@ -300,16 +303,16 @@ pub fn restore(ctx: &Ctx, cmd: Option<RestoreCmd>) -> Result<(), String> {
                 return Err(t!("requires_admin"));
             }
             if !ctx.json {
-                anstream::eprintln!("{}", ui::dim(tr("Creando el punto de restauración (puede tardar un minuto)…")));
+                note!("{}", ui::dim(tr("Creando el punto de restauración (puede tardar un minuto)…")));
             }
             let created = restore::create(&t!("restore_description"))?;
             if ctx.json {
                 return ui::json(&created);
             }
             if created.reused {
-                anstream::println!("{} {}", ui::green("✓"), tf!("Ya había uno reciente ({when}): Windows no crea otro tan seguido.", when = ui::ago(created.at)));
+                say!("{} {}", ui::green("✓"), tf!("Ya había uno reciente ({when}): Windows no crea otro tan seguido.", when = ui::ago(created.at)));
             } else {
-                anstream::println!("{} {}", ui::green("✓"), tr("Punto de restauración creado."));
+                say!("{} {}", ui::green("✓"), tr("Punto de restauración creado."));
             }
             Ok(())
         }
@@ -334,5 +337,10 @@ mod tests {
         assert_eq!(find_startup(&items, "helper").unwrap().name, "SpotifyHelper");
         assert!(find_startup(&items, "spot").is_err());
         assert!(find_startup(&items, "steam").is_err());
+        // Vacío no es "cualquiera", ni siquiera si hay uno solo.
+        assert!(find_startup(&items[..1], "").is_err());
+        // Con acentos, el nombre exacto también gana.
+        let accented = vec![item(Source::RunUser, "Sincronización", "Sincronización"), item(Source::RunUser, "Sincronización 2", "Sincronización 2")];
+        assert_eq!(find_startup(&accented, "sincronizacion").unwrap().name, "Sincronización");
     }
 }

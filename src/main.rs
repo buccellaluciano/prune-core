@@ -8,6 +8,24 @@ extern crate prune_engine;
 
 /// Texto de la CLI con valores: `tf!("Quedan {n}", n = 3)`. El texto es la clave en
 /// `locales/<idioma>.json` (ver `ui`).
+/// Como `println!`, pero pasando por `ui::render`: sin caracteres de control ajenos y con
+/// los colores puestos. Todo lo que la consola imprime sale por acá (o por `note!` y `ask!`).
+macro_rules! say {
+    () => { anstream::println!() };
+    ($($arg:tt)*) => { anstream::println!("{}", $crate::ui::render(&format!($($arg)*))) };
+}
+
+/// Como `say!`, a la salida de errores.
+macro_rules! note {
+    () => { anstream::eprintln!() };
+    ($($arg:tt)*) => { anstream::eprintln!("{}", $crate::ui::render(&format!($($arg)*))) };
+}
+
+/// Como `note!`, sin salto de renglón: para preguntas.
+macro_rules! ask {
+    ($($arg:tt)*) => { anstream::eprint!("{}", $crate::ui::render(&format!($($arg)*))) };
+}
+
 macro_rules! tf {
     ($es:literal, $($name:ident = $val:expr),+ $(,)?) => {
         $crate::ui::fmt($es, &[$((stringify!($name), &$val as &dyn ::std::fmt::Display)),+])
@@ -357,7 +375,7 @@ fn run() -> Result<(), String> {
         None => {
             tweaks::status(&ctx)?;
             if !ctx.json {
-                anstream::println!("\n{}", ui::dim(tr("`prune --help` muestra los comandos.")));
+                say!("\n{}", ui::dim(tr("`prune --help` muestra los comandos.")));
             }
             Ok(())
         }
@@ -394,7 +412,7 @@ fn main() {
         let _ = SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32);
     }
     if let Err(e) = run() {
-        anstream::eprintln!("{} {e}", ui::red("error:"));
+        note!("{} {e}", ui::red("error:"));
         std::process::exit(1);
     }
 }

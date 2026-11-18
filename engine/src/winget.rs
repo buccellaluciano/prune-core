@@ -227,11 +227,18 @@ fn version() -> Result<String, String> {
 /// que vamos a usar y hacer que winget (como admin) escriba en otro lado. Por eso se crea
 /// una carpeta nueva (falla si ya existe algo con ese nombre) y, si la app corre como
 /// admin, nace con permisos solo para Administradores y SYSTEM.
+///
+/// Como administrador, además, no se crea en `%TEMP%` sino dentro de la carpeta del
+/// historial, en Program Files: en `%TEMP%` el usuario puede borrar o renombrar lo que hay,
+/// y cambiar la carpeta recién creada por un enlace antes de que winget escriba.
 pub fn private_dir() -> Result<PathBuf, String> {
-    private_dir_with(crate::system::is_elevated())
+    let elevated = crate::system::is_elevated();
+    let base = if elevated { crate::paths::journal_dir(true)? } else { std::env::temp_dir() };
+    private_dir_in(&base, elevated)
 }
 
-fn private_dir_with(elevated: bool) -> Result<PathBuf, String> {
+/// Crea la carpeta dentro de `base`. Con `elevated`, solo para Administradores y SYSTEM.
+fn private_dir_in(base: &std::path::Path, elevated: bool) -> Result<PathBuf, String> {
     use windows::core::PCWSTR;
     use windows::Win32::Foundation::{LocalFree, HLOCAL};
     use windows::Win32::Security::Authorization::{ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1};
@@ -240,7 +247,7 @@ fn private_dir_with(elevated: bool) -> Result<PathBuf, String> {
 
     let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
     for attempt in 0..8u128 {
-        let path = std::env::temp_dir().join(format!("debloater-{:x}", seed.wrapping_mul(2654435761).wrapping_add(attempt)));
+        let path = base.join(format!("debloater-{:x}", seed.wrapping_mul(2654435761).wrapping_add(attempt)));
         let wide: Vec<u16> = path.to_string_lossy().encode_utf16().chain(std::iter::once(0)).collect();
         let created = unsafe {
             if elevated {
@@ -749,7 +756,7 @@ mod tests {
         if crate::system::is_elevated() {
             return; // como admin sí se puede escribir: la prueba solo tiene sentido sin admin
         }
-        let d = private_dir_with(true).unwrap();
+        let d = private_dir_in(&std::env::temp_dir(), true).unwrap();
         let err = std::fs::write(d.join("plantado.txt"), b"x").unwrap_err();
         // Limpieza: ni quien la creó puede borrarla sin admin; como dueño, se le devuelven
         // los permisos heredados y recién ahí se borra.

@@ -2,7 +2,7 @@
 
 use crate::Ctx;
 use crate::ui::{self, tr};
-use prune_engine::engine::{Engine, JournalEntry};
+use prune_engine::engine::JournalEntry;
 use prune_engine::{appx, paths, power, proxy, registry, startup, wupdate};
 
 /// Se puede deshacer: no se deshizo ya y no es solo "apps quitadas" (esas no vuelven desde acá).
@@ -34,7 +34,8 @@ pub(crate) fn undo_plan(e: &JournalEntry) -> Vec<String> {
     for done in [e.proxy.as_ref().map(proxy::label), e.startup.as_ref().map(startup::label), e.wu.as_ref().map(wupdate::label)].into_iter().flatten() {
         out.push(format!("↩ {done}"));
     }
-    out
+    // Son valores del registro y nombres de conexiones: no se confía en lo que traigan.
+    out.iter().map(|line| ui::clean(line)).collect()
 }
 
 /// Sin administrador se ve el historial propio. Si además hay uno de administrador (el de la
@@ -43,8 +44,7 @@ fn admin_history_note(ctx: &Ctx) -> Option<String> {
     if ctx.info.elevated {
         return None;
     }
-    let n = Engine::new(paths::admin_journal_dir()?).history().len();
-    (n > 0).then(|| tf!("Hay además un historial de administrador con {n} entradas: abrí una terminal de administrador para verlo.", n = n))
+    paths::admin_journal_dir().map(|_| tr("Lo que hacés como administrador tiene su propio historial: abrí una terminal de administrador para verlo.").to_string())
 }
 
 pub fn history(ctx: &Ctx, limit: usize) -> Result<(), String> {
@@ -54,13 +54,13 @@ pub fn history(ctx: &Ctx, limit: usize) -> Result<(), String> {
     }
     // Si no se pudo leer, se dice: "está vacío" a secas sería mentira.
     if let Some(w) = ctx.engine.take_warning() {
-        anstream::println!("{} {w}", ui::yellow("●"));
+        say!("{} {w}", ui::yellow("●"));
     }
     let note = admin_history_note(ctx);
     if entries.is_empty() {
-        anstream::println!("{}", tr("El historial está vacío."));
+        say!("{}", tr("El historial está vacío."));
         if let Some(n) = &note {
-            anstream::println!("{}", ui::dim(n));
+            say!("{}", ui::dim(n));
         }
         return Ok(());
     }
@@ -75,15 +75,15 @@ pub fn history(ctx: &Ctx, limit: usize) -> Result<(), String> {
         } else {
             String::new()
         };
-        let label = if e.undone { ui::dim(&e.label) } else { e.label.clone() };
-        anstream::println!("{} {}  {label}{note}", ui::cyan(&n), ui::dim(&ui::pad(when, width)));
+        let label = if e.undone { ui::dim(&ui::clean(&e.label)) } else { ui::clean(&e.label) };
+        say!("{} {}  {label}{note}", ui::cyan(&n), ui::dim(&ui::pad(when, width)));
     }
     if entries.len() > limit {
-        anstream::println!("{}", ui::dim(&format!("… {} {}", entries.len() - limit, tr("más (-n para ver más)"))));
+        say!("{}", ui::dim(&format!("… {} {}", entries.len() - limit, tr("más (-n para ver más)"))));
     }
-    anstream::println!("\n{} {}", ui::dim(tr("Para deshacer una entrada:")), ui::cyan("prune undo <N>"));
+    say!("\n{} {}", ui::dim(tr("Para deshacer una entrada:")), ui::cyan("prune undo <N>"));
     if let Some(n) = &note {
-        anstream::println!("{}", ui::dim(n));
+        say!("{}", ui::dim(n));
     }
     Ok(())
 }
@@ -108,14 +108,14 @@ pub fn undo(ctx: &Ctx, which: Option<u64>, force: bool) -> Result<(), String> {
     let entry = pick(&entries, which)?;
     ctx.need_yes_in_json()?;
     if !ctx.json {
-        anstream::println!("{}  {}", ui::bold(&entry.label), ui::dim(&ui::ago(entry.at)));
-        anstream::println!("{}", tr("Deshacer esta entrada va a escribir:"));
+        say!("{}  {}", ui::bold(&ui::clean(&entry.label)), ui::dim(&ui::ago(entry.at)));
+        say!("{}", tr("Deshacer esta entrada va a escribir:"));
         for line in undo_plan(entry) {
-            anstream::println!("  {line}");
+            say!("  {line}");
         }
     }
     if !ui::confirm(tr("¿Deshacer esta entrada?"), ctx.yes)? {
-        anstream::println!("{}", tr("No se cambió nada."));
+        say!("{}", tr("No se cambió nada."));
         return Ok(());
     }
     let report = ctx.engine.undo(entry.id, force, ctx.info.foreign_user.as_deref())?;
@@ -125,16 +125,16 @@ pub fn undo(ctx: &Ctx, which: Option<u64>, force: bool) -> Result<(), String> {
         ui::json(&report)?;
     } else {
         if conflicted {
-            anstream::println!("{} {}", ui::yellow("●"), tr("Estos valores cambiaron después de esa entrada:"));
+            say!("{} {}", ui::yellow("●"), tr("Estos valores cambiaron después de esa entrada:"));
             for c in &report.conflicts {
-                anstream::println!("  {c}");
+                say!("  {c}");
             }
         }
         for r in report.results.iter().filter(|r| !r.ok) {
-            anstream::println!("{} {}: {}", ui::red("✗"), r.id, r.error.as_deref().unwrap_or_default());
+            say!("{} {}: {}", ui::red("✗"), r.id, r.error.as_deref().unwrap_or_default());
         }
         if let Some(w) = &report.warning {
-            anstream::println!("{} {w}", ui::yellow("●"));
+            say!("{} {w}", ui::yellow("●"));
         }
     }
     if conflicted {
@@ -145,7 +145,7 @@ pub fn undo(ctx: &Ctx, which: Option<u64>, force: bool) -> Result<(), String> {
         return Err(tf!("No se pudieron restaurar {n} valores.", n = failed));
     }
     if !ctx.json {
-        anstream::println!("{} {}", ui::green("✓"), tr("Deshecho."));
+        say!("{} {}", ui::green("✓"), tr("Deshecho."));
     }
     Ok(())
 }
@@ -157,14 +157,14 @@ pub fn drift(ctx: &Ctx) -> Result<(), String> {
         return ui::json(&drifted);
     }
     if drifted.is_empty() {
-        anstream::println!("{} {}", ui::green("✓"), tr("Todo sigue como lo dejaste."));
+        say!("{} {}", ui::green("✓"), tr("Todo sigue como lo dejaste."));
         return Ok(());
     }
-    anstream::println!("{}", tr("Cambiaron desde que los aplicaste:"));
+    say!("{}", tr("Cambiaron desde que los aplicaste:"));
     let width = drifted.iter().map(|d| d.id.len()).max().unwrap_or(0);
     for d in &drifted {
         let kind = if d.kind == "bloat" { tr("app que volvió") } else { tr("ajuste") };
-        anstream::println!("  {}  {}  {}", ui::cyan(&ui::pad(&d.id, width)), d.title, ui::dim(&format!("{kind}, {}", ui::ago(d.at))));
+        say!("  {}  {}  {}", ui::cyan(&ui::pad(&d.id, width)), d.title, ui::dim(&format!("{kind}, {}", ui::ago(d.at))));
     }
     let tweaks: Vec<String> = drifted
         .iter()
@@ -175,7 +175,7 @@ pub fn drift(ctx: &Ctx) -> Result<(), String> {
         })
         .collect();
     if !tweaks.is_empty() {
-        anstream::println!("\n{} {}", ui::dim(tr("Para volver a aplicarlos:")), ui::cyan(&format!("prune apply {}", tweaks.join(" "))));
+        say!("\n{} {}", ui::dim(tr("Para volver a aplicarlos:")), ui::cyan(&format!("prune apply {}", tweaks.join(" "))));
     }
     Ok(())
 }

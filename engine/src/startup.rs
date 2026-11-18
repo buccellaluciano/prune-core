@@ -238,8 +238,34 @@ fn shortcut_target(lnk: &Path) -> Option<(PathBuf, String)> {
     }
 }
 
+/// ¿La ruta está en la red (un recurso compartido o una unidad conectada)?
+fn is_remote(p: &Path) -> bool {
+    use windows::Win32::Storage::FileSystem::GetDriveTypeW;
+    const DRIVE_REMOTE: u32 = 4;
+    let s = p.to_string_lossy();
+    let lower = s.to_ascii_lowercase();
+    if lower.starts_with(r"\\?\unc\") {
+        return true;
+    }
+    if s.starts_with(r"\\") {
+        // `\\?\C:\...` y `\\.\...` son rutas locales escritas de otra forma.
+        return !lower.starts_with(r"\\?\") && !lower.starts_with(r"\\.\");
+    }
+    let b = s.as_bytes();
+    if b.len() >= 2 && b[1] == b':' && b[0].is_ascii_alphabetic() {
+        let root: Vec<u16> = format!("{}:\\", b[0] as char).encode_utf16().chain(std::iter::once(0)).collect();
+        return unsafe { GetDriveTypeW(PCWSTR(root.as_ptr())) } == DRIVE_REMOTE;
+    }
+    false
+}
+
 fn describe_exe(path: Option<PathBuf>, sign: bool) -> (Option<String>, bool, Option<String>, bool) {
     match path {
+        // Lo que está en la red no se abre ni se le mira la firma: cualquier usuario puede
+        // registrar una tarea que apunte a un servidor suyo, y un administrador que solo quiso
+        // listar lo que arranca con Windows terminaría presentándose ahí con su cuenta. Se
+        // muestra la ruta y nada más (ni "no existe": no se comprobó).
+        Some(p) if is_remote(&p) => (Some(p.to_string_lossy().into_owned()), true, None, false),
         Some(p) => {
             let exists = p.is_file();
             let publisher = (exists && sign).then(|| crate::sign::signer(&p).ok()).flatten();
@@ -552,6 +578,19 @@ pub fn label(c: &StartupChange) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lo_que_esta_en_la_red_no_se_toca() {
+        assert!(is_remote(Path::new(r"\\servidor\compartido\x.exe")));
+        assert!(is_remote(Path::new(r"\\?\UNC\servidor\compartido\x.exe")));
+        assert!(!is_remote(Path::new(r"C:\Windows\System32\cmd.exe")));
+        assert!(!is_remote(Path::new(r"\\?\C:\Windows\System32\cmd.exe")));
+        assert!(!is_remote(Path::new("cmd.exe")));
+        // De una ruta de red se informa la ruta y nada más: sin abrirla ni mirar su firma.
+        let (path, exists, publisher, system) = describe_exe(Some(PathBuf::from(r"\\servidor\compartido\x.exe")), true);
+        assert_eq!(path.as_deref(), Some(r"\\servidor\compartido\x.exe"));
+        assert!(exists && publisher.is_none() && !system);
+    }
 
     #[test]
     fn approved_values() {
